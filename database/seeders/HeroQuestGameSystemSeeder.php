@@ -5,7 +5,10 @@ namespace Database\Seeders;
 use App\Models\CharacterClassDefinition;
 use App\Models\GameSystem;
 use App\Models\GameSystemVersion;
+use App\Models\ItemDefinition;
+use App\Models\SkillDefinition;
 use App\Models\SlotDefinition;
+use App\Models\SpellDefinition;
 use App\Models\StatDefinition;
 use App\Models\TrayDefinition;
 use Illuminate\Database\Seeder;
@@ -58,6 +61,30 @@ class HeroQuestGameSystemSeeder extends Seeder
                 ['game_system_version_id' => $version->id, 'key' => $key],
                 ['name' => str($key)->title(), 'configuration' => ['default_stats' => $stats], 'display_order' => array_search($key, ['barbarian', 'dwarf', 'elf', 'wizard'], true) * 10],
             );
+        }
+
+        foreach ([
+            'broadsword' => ['name' => 'Broadsword', 'description' => 'A reliable one-handed weapon.'],
+            'shield' => ['name' => 'Shield', 'description' => 'Defensive equipment carried in one hand.'],
+            'helmet' => ['name' => 'Helmet', 'description' => 'Protective head equipment.'],
+            'healing_potion' => ['name' => 'Healing Potion', 'description' => 'A consumable restorative draught.'],
+            'battle_axe' => ['name' => 'Battle Axe', 'description' => 'A heavy two-handed weapon.', 'configuration' => ['required_slots' => ['left_hand', 'right_hand']]],
+        ] as $key => $item) {
+            ItemDefinition::query()->updateOrCreate(['game_system_version_id' => $version->id, 'key' => $key], $item);
+        }
+
+        foreach ([
+            'heal_body' => ['name' => 'Heal Body', 'description' => 'Restore lost Body Points.'],
+            'fire_of_wrath' => ['name' => 'Fire of Wrath', 'description' => 'A direct magical attack.'],
+        ] as $key => $spell) {
+            SpellDefinition::query()->updateOrCreate(['game_system_version_id' => $version->id, 'key' => $key], $spell);
+        }
+
+        foreach ([
+            'disarm_trap' => ['name' => 'Disarm Trap', 'description' => 'Safely disable a discovered trap.'],
+            'battle_rage' => ['name' => 'Battle Rage', 'description' => 'A configurable martial ability.'],
+        ] as $key => $skill) {
+            SkillDefinition::query()->updateOrCreate(['game_system_version_id' => $version->id, 'key' => $key], $skill);
         }
     }
 }

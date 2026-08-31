@@ -2989,6 +2989,16 @@ Codex should maintain this list during implementation.
 
 ## Implementation progress log
 
+## Milestone delivery status
+
+| Milestone | Planned outcome | Accomplished | Status |
+| --- | --- | --- | --- |
+| 1 — Foundation | Two authenticated users can join a room and the DM can assign a character. | Authentication, generic game definitions, room creation/join approval, characters, stats, assignment, policies, MariaDB, Reverb/Echo connectivity, and permission tests are complete. | Complete |
+| 2 — Functional Character Sheets | A player can use a phone to manage their assigned character. | Generic inventory and custom items, equipment slots, spells, skills, notes, configured trays, and a responsive personal sheet are complete with authorization tests. | Complete |
+| 3 — Game Control | Turns, revisioning, event log, and undo. | Not started. | Planned |
+| 4 — Realtime | Live domain mutations with reconnect/resync. | Transport and channel authorization are proven; domain broadcasts and resync remain. | Partially prepared |
+| 5–10 | Viewing, theme/assets, overlays, and HQForge-ready API. | Not started beyond foundational extension points. | Planned |
+
 ### 2026-08-30 — Foundation schema and local environment
 
 - Confirmed PHP 8.5, Laravel 13, Vue 3, Inertia 3, and Vite 8.
@@ -3042,9 +3052,22 @@ Codex should maintain this list during implementation.
 - Verified the Reverb server listens locally on port 8080 and the database queue worker starts independently.
 - Verification: 27 tests passing with 105 assertions; frontend lint, Vue TypeScript, and production build passing.
 
+### 2026-08-31 — Functional character sheets
+
+- Added normalized item, spell, and skill definitions tied to game-system versions.
+- Added character inventory with predefined and custom items, quantities, removal, and descriptions.
+- Added equipment assignment and removal with generic configured slot-capacity enforcement.
+- Added character spells and skills with add/remove and used/exhausted state.
+- Added public/private character notes with private-note filtering for non-controllers.
+- Added a responsive personal character-sheet route with sticky stats and configured collapsible trays.
+- Added touch-friendly inventory, equipment, ability, note, and stat controls for assigned players and DMs.
+- Extended the HeroQuest-like development seed with sample items, spells, and skills as configuration rather than hard-coded rules.
+- Added end-to-end tests for inventory, equipment capacity, abilities, notes, personal-sheet visibility, and permission boundaries.
+- Verification: 32 tests passing with 137 assertions; MariaDB migration/seeding, frontend lint, and Vue TypeScript checks passing.
+
 ### Current focus
 
-- Complete a final Milestone 1 review, then begin inventory, equipment slots, spells, skills, and character trays.
+- Begin Milestone 3 with turn order/current-character tracking, revisioning, the append-only event log, and compensating undo.
 
 ```text
 [x] Project bootstrap
@@ -3062,13 +3085,13 @@ Codex should maintain this list during implementation.
 [x] Characters
 [x] Character stats
 [x] Character assignment
-[ ] Item definitions
-[ ] Character inventory
-[ ] Equipment slots
-[ ] Spells
-[ ] Skills
-[ ] Character sheet components
-[ ] Responsive personal sheet
+[x] Item definitions
+[x] Character inventory
+[x] Equipment slots
+[x] Spells
+[x] Skills
+[x] Character sheet components
+[x] Responsive personal sheet
 [ ] Turn order
 [ ] Current character highlight
 [ ] Game event log

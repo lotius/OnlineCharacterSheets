@@ -42,4 +42,19 @@ class GameSystemVersion extends Model
     {
         return $this->hasMany(CharacterClassDefinition::class);
     }
+
+    public function items(): HasMany
+    {
+        return $this->hasMany(ItemDefinition::class);
+    }
+
+    public function spells(): HasMany
+    {
+        return $this->hasMany(SpellDefinition::class);
+    }
+
+    public function skills(): HasMany
+    {
+        return $this->hasMany(SkillDefinition::class);
+    }
 }

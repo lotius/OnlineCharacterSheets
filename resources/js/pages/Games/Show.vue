@@ -212,6 +212,11 @@ onUnmounted(() => echo.leave(`games.${props.game.id}`));
                                 character.assigned_user_name || 'Unassigned'
                             }}</span>
                         </div>
+                        <Link
+                            :href="`/games/${game.id}/characters/${character.id}`"
+                            class="mt-3 inline-block text-sm font-semibold text-amber-500"
+                            >Open character sheet →</Link
+                        >
                         <div class="mt-5 grid grid-cols-2 gap-3">
                             <div
                                 v-for="stat in character.stats"

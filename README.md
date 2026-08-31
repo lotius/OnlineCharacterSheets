@@ -2,6 +2,13 @@
 
 A Laravel, Vue, and Inertia application for realtime tabletop character sheets and game rooms. The domain is game-system agnostic; the first seeded configuration is HeroQuest-inspired.
 
+## Implemented milestones
+
+- Milestone 1: authentication, generic game definitions, rooms, membership approval, character creation/assignment, policies, and Reverb/Echo connectivity.
+- Milestone 2: inventory, equipment slots, spells, skills, notes, configured trays, and a responsive personal character sheet.
+
+Detailed planned-versus-completed status is maintained in `CODEX_ACTION_PLAN.md`.
+
 ## Local setup
 
 Requirements:

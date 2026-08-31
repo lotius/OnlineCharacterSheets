@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Character extends Model
 {
@@ -41,5 +42,25 @@ class Character extends Model
     public function sessions(): HasMany
     {
         return $this->hasMany(SessionCharacter::class);
+    }
+
+    public function items(): HasMany
+    {
+        return $this->hasMany(CharacterItem::class);
+    }
+
+    public function spells(): HasMany
+    {
+        return $this->hasMany(CharacterSpell::class);
+    }
+
+    public function skills(): HasMany
+    {
+        return $this->hasMany(CharacterSkill::class);
+    }
+
+    public function note(): HasOne
+    {
+        return $this->hasOne(CharacterNote::class);
     }
 }
