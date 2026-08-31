@@ -59,7 +59,7 @@ const props = defineProps<{ game: Game }>();
 const connectionStatus = ref<'connecting' | 'connected' | 'error'>(
     'connecting',
 );
-const lastPing = ref<string | null>(null);
+let stopConnectionListener: (() => void) | null = null;
 const openCharacters = ref<Record<number, boolean>>({});
 const openSections = ref<Record<string, boolean>>({});
 const sectionKey = (characterId: number, trayKey: string) =>
@@ -110,16 +110,27 @@ onMounted(() => {
     const channel = props.game.is_spectator
         ? echo.channel(`games.public.${props.game.id}`)
         : echo.private(`games.${props.game.id}`);
+    const connection = echo.connector.pusher.connection;
+    const updateConnectionStatus = ({ current }: { current: string }) => {
+        if (current === 'connected') connectionStatus.value = 'connected';
+        else if (current === 'failed' || current === 'unavailable')
+            connectionStatus.value = 'error';
+        else connectionStatus.value = 'connecting';
+    };
+
+    connection.bind('state_change', updateConnectionStatus);
+    stopConnectionListener = () =>
+        connection.unbind('state_change', updateConnectionStatus);
 
     channel
         .subscribed(() => (connectionStatus.value = 'connected'))
-        .error(() => (connectionStatus.value = 'error'))
-        .listen('.room.realtime.ping', (event: { sent_at: string }) => {
-            lastPing.value = event.sent_at;
-        });
+        .error(() => (connectionStatus.value = 'error'));
 });
 
-onUnmounted(() => echo?.leave(`games.${props.game.id}`));
+onUnmounted(() => {
+    stopConnectionListener?.();
+    echo?.leave(`games.${props.game.id}`);
+});
 </script>
 
 <template>
@@ -156,39 +167,22 @@ onUnmounted(() => echo?.leave(`games.${props.game.id}`));
                         {{ game.join_code }}
                     </p>
                 </div>
-                <div class="flex items-center gap-3">
+                <div
+                    class="flex items-center"
+                    :title="`Realtime ${connectionStatus}`"
+                    role="status"
+                    :aria-label="`Realtime ${connectionStatus}`"
+                >
                     <span
-                        class="size-3 rounded-full"
+                        class="size-3 rounded-full ring-4 ring-stone-900"
                         :class="{
                             'bg-amber-500': connectionStatus === 'connecting',
                             'bg-emerald-500': connectionStatus === 'connected',
                             'bg-red-500': connectionStatus === 'error',
                         }"
                     />
-                    <span class="text-sm text-stone-400"
-                        >Realtime {{ connectionStatus }}</span
-                    >
-                    <button
-                        v-if="!game.is_spectator"
-                        type="button"
-                        class="rounded border border-stone-700 px-3 py-2 text-sm"
-                        @click="
-                            router.post(
-                                `/games/${game.id}/realtime/ping`,
-                                {},
-                                { preserveScroll: true },
-                            )
-                        "
-                    >
-                        Test
-                    </button>
                 </div>
             </header>
-
-            <p v-if="lastPing" class="mt-3 text-sm text-emerald-400">
-                Realtime ping received at
-                {{ new Date(lastPing).toLocaleTimeString() }}.
-            </p>
 
             <section class="mt-8">
                 <div class="flex items-center justify-between">
