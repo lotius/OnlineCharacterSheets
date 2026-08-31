@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Actions\GameSessions\CreateGameSession;
 use App\Http\Requests\GameSessions\StoreGameSessionRequest;
+use App\Models\CharacterClassDefinition;
 use App\Models\GameSession;
 use App\Models\GameSystemVersion;
+use App\Models\TrayDefinition;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -68,6 +70,8 @@ class GameSessionController extends Controller
         ]);
 
         $canManageMembers = $user?->can('manageMembers', $game) ?? false;
+        $classes = CharacterClassDefinition::query()->availableToUser($game->owner)->where('game_system_version_id', $game->game_system_version_id)->orderBy('display_order')->get();
+        $trays = TrayDefinition::query()->availableToUser($game->owner)->where('game_system_version_id', $game->game_system_version_id)->orderBy('display_order')->get();
 
         return Inertia::render('Games/Show', [
             'game' => [
@@ -76,7 +80,7 @@ class GameSessionController extends Controller
                 'system' => $game->gameSystemVersion->gameSystem->name,
                 'can_manage_members' => $canManageMembers,
                 'is_spectator' => ! $isMember,
-                'classes' => $game->gameSystemVersion->characterClasses->sortBy('display_order')->values()->map(fn ($class) => [
+                'classes' => $classes->map(fn ($class) => [
                     'id' => $class->id, 'name' => $class->name,
                 ]),
                 'players' => $game->members->where('status', 'active')->whereIn('role', ['player', 'co_dm'])->map(fn ($member) => [
@@ -85,7 +89,7 @@ class GameSessionController extends Controller
                 'members' => $isMember ? $game->members->map(fn ($member) => [
                     'id' => $member->id, 'name' => $member->user->name, 'role' => $member->role, 'status' => $member->status,
                 ]) : [],
-                'characters' => $game->sessionCharacters->where('is_active', true)->map(function ($sessionCharacter) use ($user, $game) {
+                'characters' => $game->sessionCharacters->where('is_active', true)->map(function ($sessionCharacter) use ($user, $trays) {
                     $character = $sessionCharacter->character;
                     $canUpdate = $user?->can('update', $character) ?? false;
 
@@ -101,7 +105,7 @@ class GameSessionController extends Controller
                             'id' => $stat->id, 'key' => $stat->definition->key, 'name' => $stat->definition->name,
                             'value' => $stat->value, 'max_value' => $stat->max_value,
                         ]),
-                        'trays' => $game->gameSystemVersion->trays->sortBy('display_order')->values()->map(fn ($tray) => [
+                        'trays' => $trays->map(fn ($tray) => [
                             'key' => $tray->key, 'name' => $tray->name, 'default_open' => $tray->default_open,
                         ]),
                         'items' => $character->items->map(fn ($item) => [

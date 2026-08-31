@@ -1,7 +1,9 @@
 <?php
 
+use App\Http\Controllers\AdminGameSystemController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\CharacterAssignmentController;
 use App\Http\Controllers\CharacterController;
 use App\Http\Controllers\CharacterEquipmentController;
@@ -48,6 +50,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/games/create', [GameSessionController::class, 'create'])->name('games.create');
     Route::post('/games', [GameSessionController::class, 'store'])->name('games.store');
     Route::post('/games/join', [GameSessionJoinController::class, 'store'])->name('games.join');
+    Route::get('/library', [CatalogController::class, 'personal'])->name('library');
+    Route::post('/library/{version}/{type}', [CatalogController::class, 'storePersonal'])->name('library.store');
+    Route::patch('/library/{version}/{type}/{definition}', [CatalogController::class, 'updatePersonal'])->name('library.update');
+    Route::delete('/library/{type}/{definition}', [CatalogController::class, 'destroyPersonal'])->name('library.destroy');
     Route::post('/games/{game}/realtime/ping', [RoomRealtimeController::class, 'store'])->name('games.realtime.ping');
     Route::post('/games/{game}/characters', [CharacterController::class, 'store'])->name('games.characters.store');
     Route::patch('/games/{game}/characters/{sessionCharacter}/assignment', [CharacterAssignmentController::class, 'update'])->name('games.characters.assignment.update');
@@ -69,4 +75,14 @@ Route::middleware('auth')->group(function () {
     Route::patch('/games/{game}/members/{member}/reject', [GameSessionMemberController::class, 'reject'])->name('games.members.reject');
     Route::delete('/games/{game}/members/{member}', [GameSessionMemberController::class, 'destroy'])->name('games.members.destroy');
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
+
+    Route::middleware('admin')->prefix('admin')->group(function () {
+        Route::get('/systems', [AdminGameSystemController::class, 'index'])->name('admin.systems');
+        Route::post('/systems', [AdminGameSystemController::class, 'store'])->name('admin.systems.store');
+        Route::post('/systems/{system}/versions', [AdminGameSystemController::class, 'storeVersion'])->name('admin.versions.store');
+        Route::get('/catalog', [CatalogController::class, 'admin'])->name('admin.catalog');
+        Route::post('/catalog/{version}/{type}', [CatalogController::class, 'storeAdmin'])->name('admin.catalog.store');
+        Route::patch('/catalog/{version}/{type}/{definition}', [CatalogController::class, 'updateAdmin'])->name('admin.catalog.update');
+        Route::delete('/catalog/{type}/{definition}', [CatalogController::class, 'destroyAdmin'])->name('admin.catalog.destroy');
+    });
 });

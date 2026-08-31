@@ -32,6 +32,17 @@ const join = useForm({ join_code: '' });
                 </div>
                 <div class="flex gap-3">
                     <Link
+                        href="/library"
+                        class="rounded-lg border border-stone-700 px-4 py-2 text-sm"
+                        >Homebrew library</Link
+                    >
+                    <Link
+                        v-if="page.props.auth.user.is_admin"
+                        href="/admin/systems"
+                        class="rounded-lg border border-amber-700 px-4 py-2 text-sm text-amber-400"
+                        >Admin</Link
+                    >
+                    <Link
                         href="/games/create"
                         class="rounded-lg bg-amber-600 px-4 py-2 font-bold text-stone-950"
                         >Create room</Link

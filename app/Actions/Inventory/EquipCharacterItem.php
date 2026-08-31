@@ -12,7 +12,10 @@ class EquipCharacterItem
 {
     public function handle(Character $character, CharacterItem $item, SlotDefinition $slot): CharacterItemSlot
     {
-        if ($item->character_id !== $character->id || $slot->game_system_version_id !== $character->game_system_version_id) {
+        $ownerAllowed = ! $slot->owner_user_id || $character->sessions()
+            ->whereHas('gameSession', fn ($query) => $query->where('owner_user_id', $slot->owner_user_id))->exists();
+
+        if ($item->character_id !== $character->id || $slot->game_system_version_id !== $character->game_system_version_id || ! $ownerAllowed) {
             throw ValidationException::withMessages(['slot' => 'That item or slot is not valid for this character.']);
         }
 

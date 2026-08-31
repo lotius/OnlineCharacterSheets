@@ -11,7 +11,10 @@ class AddCharacterSkill
 {
     public function handle(Character $character, SkillDefinition $definition): CharacterSkill
     {
-        if ($definition->game_system_version_id !== $character->game_system_version_id) {
+        $ownerAllowed = ! $definition->owner_user_id || $character->sessions()
+            ->whereHas('gameSession', fn ($query) => $query->where('owner_user_id', $definition->owner_user_id))->exists();
+
+        if ($definition->game_system_version_id !== $character->game_system_version_id || ! $ownerAllowed) {
             throw ValidationException::withMessages(['skill_definition_id' => 'That skill is not valid for this character.']);
         }
 

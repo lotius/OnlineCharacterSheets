@@ -14,7 +14,10 @@ class AddCharacterItem
     {
         $definition = empty($attributes['item_definition_id']) ? null : ItemDefinition::query()->findOrFail($attributes['item_definition_id']);
 
-        if ($definition && $definition->game_system_version_id !== $character->game_system_version_id) {
+        $ownerAllowed = ! $definition?->owner_user_id || $character->sessions()
+            ->whereHas('gameSession', fn ($query) => $query->where('owner_user_id', $definition->owner_user_id))->exists();
+
+        if ($definition && ($definition->game_system_version_id !== $character->game_system_version_id || ! $ownerAllowed)) {
             throw ValidationException::withMessages(['item_definition_id' => 'That item does not belong to this character’s game system.']);
         }
 

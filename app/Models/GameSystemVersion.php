@@ -25,36 +25,36 @@ class GameSystemVersion extends Model
 
     public function stats(): HasMany
     {
-        return $this->hasMany(StatDefinition::class);
+        return $this->hasMany(StatDefinition::class)->whereNull('owner_user_id');
     }
 
     public function slots(): HasMany
     {
-        return $this->hasMany(SlotDefinition::class);
+        return $this->hasMany(SlotDefinition::class)->whereNull('owner_user_id');
     }
 
     public function trays(): HasMany
     {
-        return $this->hasMany(TrayDefinition::class);
+        return $this->hasMany(TrayDefinition::class)->whereNull('owner_user_id');
     }
 
     public function characterClasses(): HasMany
     {
-        return $this->hasMany(CharacterClassDefinition::class);
+        return $this->hasMany(CharacterClassDefinition::class)->whereNull('owner_user_id');
     }
 
     public function items(): HasMany
     {
-        return $this->hasMany(ItemDefinition::class);
+        return $this->hasMany(ItemDefinition::class)->whereNull('owner_user_id');
     }
 
     public function spells(): HasMany
     {
-        return $this->hasMany(SpellDefinition::class);
+        return $this->hasMany(SpellDefinition::class)->whereNull('owner_user_id');
     }
 
     public function skills(): HasMany
     {
-        return $this->hasMany(SkillDefinition::class);
+        return $this->hasMany(SkillDefinition::class)->whereNull('owner_user_id');
     }
 }
