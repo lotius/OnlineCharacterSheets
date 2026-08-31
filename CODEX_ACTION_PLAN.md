@@ -3008,9 +3008,19 @@ Codex should maintain this list during implementation.
 - Added authentication and registration feature tests.
 - Verification: 13 tests passing with 53 assertions; Pint and Vue TypeScript checks passing.
 
+### 2026-08-30 — Game rooms and membership
+
+- Added authenticated room listing and creation using active game-system versions.
+- Added unique eight-character join codes and join-request submission.
+- Added DM-only approval, rejection, and member-removal operations.
+- Added room and member Vue/Inertia screens with clear pending/active membership states.
+- Enforced room visibility and member-management boundaries through policies.
+- Added end-to-end room workflow and authorization tests.
+- Verification: 18 tests passing with 71 assertions; frontend lint and Vue TypeScript checks passing.
+
 ### Current focus
 
-- Build the room list/create flow and join-by-code/member-approval workflow.
+- Build character creation from class definitions, generic stat initialization, and player assignment.
 
 ```text
 [ ] Project bootstrap
@@ -3022,8 +3032,8 @@ Codex should maintain this list during implementation.
 [x] Slot definitions
 [x] Tray definitions
 [x] Character classes
-[ ] Game sessions
-[ ] Membership/invites/join requests
+[x] Game sessions
+[x] Membership/invites/join requests
 [x] Policies
 [ ] Characters
 [ ] Character stats

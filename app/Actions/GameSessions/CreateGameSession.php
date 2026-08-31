@@ -10,6 +10,7 @@ use Illuminate\Support\Str;
 
 class CreateGameSession
 {
+    /** @param array{name: string, visibility?: string, settings?: array<string, mixed>} $attributes */
     public function handle(User $owner, GameSystemVersion $version, array $attributes): GameSession
     {
         return DB::transaction(function () use ($owner, $version, $attributes): GameSession {
