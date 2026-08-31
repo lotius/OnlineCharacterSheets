@@ -2987,19 +2987,44 @@ While building:
 
 Codex should maintain this list during implementation.
 
+## Implementation progress log
+
+### 2026-08-30 — Foundation schema and local environment
+
+- Confirmed PHP 8.5, Laravel 13, Vue 3, Inertia 3, and Vite 8.
+- Installed and locked Composer and npm dependencies.
+- Configured local MariaDB with database-backed sessions, queues, and cache.
+- Added the generic game-system definition schema and Eloquent models.
+- Added game-session, membership, character, stat, and assignment foundation tables.
+- Added initial room and character policies, room creation/join-request actions, and permission tests.
+- Added an idempotent HeroQuest-like development seeder.
+- Connected the repository to GitHub and established `main` as the tracked branch.
+
+### 2026-08-30 — Authentication
+
+- Added registration, login, logout, and an authenticated dashboard using Laravel session authentication.
+- Added guest/auth route boundaries, dedicated Form Requests, login throttling, and session regeneration.
+- Added responsive Vue/Inertia authentication pages and an initial application landing page.
+- Added authentication and registration feature tests.
+- Verification: 13 tests passing with 53 assertions; Pint and Vue TypeScript checks passing.
+
+### Current focus
+
+- Build the room list/create flow and join-by-code/member-approval workflow.
+
 ```text
 [ ] Project bootstrap
-[ ] Authentication
+[x] Authentication
 [ ] Reverb connectivity proof
-[ ] Game systems
-[ ] Game-system versions
-[ ] Stat definitions
-[ ] Slot definitions
-[ ] Tray definitions
-[ ] Character classes
+[x] Game systems
+[x] Game-system versions
+[x] Stat definitions
+[x] Slot definitions
+[x] Tray definitions
+[x] Character classes
 [ ] Game sessions
 [ ] Membership/invites/join requests
-[ ] Policies
+[x] Policies
 [ ] Characters
 [ ] Character stats
 [ ] Character assignment
