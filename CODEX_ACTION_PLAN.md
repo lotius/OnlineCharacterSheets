@@ -3018,9 +3018,20 @@ Codex should maintain this list during implementation.
 - Added end-to-end room workflow and authorization tests.
 - Verification: 18 tests passing with 71 assertions; frontend lint and Vue TypeScript checks passing.
 
+### 2026-08-30 — Characters, generic stats, and assignment
+
+- Added DM-authorized character creation within a game room.
+- Initialized character stats from generic stat definitions with configurable class overrides.
+- Added assignment and unassignment restricted to active room players.
+- Added server-authorized stat mutations with configured minimum and maximum enforcement.
+- Added room character cards, class selection, player assignment controls, and stat controls.
+- Enforced assigned-character control for players while retaining DM control over every room character.
+- Added character creation, assignment, stat-boundary, and authorization tests.
+- Verification: 23 tests passing with 91 assertions; frontend lint and Vue TypeScript checks passing.
+
 ### Current focus
 
-- Build character creation from class definitions, generic stat initialization, and player assignment.
+- Install and configure Reverb/Echo for the Foundation connectivity proof, then close Milestone 1.
 
 ```text
 [ ] Project bootstrap
@@ -3035,9 +3046,9 @@ Codex should maintain this list during implementation.
 [x] Game sessions
 [x] Membership/invites/join requests
 [x] Policies
-[ ] Characters
-[ ] Character stats
-[ ] Character assignment
+[x] Characters
+[x] Character stats
+[x] Character assignment
 [ ] Item definitions
 [ ] Character inventory
 [ ] Equipment slots

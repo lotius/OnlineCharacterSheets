@@ -2,6 +2,9 @@
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\CharacterAssignmentController;
+use App\Http\Controllers\CharacterController;
+use App\Http\Controllers\CharacterStatController;
 use App\Http\Controllers\GameSessionController;
 use App\Http\Controllers\GameSessionJoinController;
 use App\Http\Controllers\GameSessionMemberController;
@@ -23,6 +26,10 @@ Route::middleware('auth')->group(function () {
     Route::post('/games', [GameSessionController::class, 'store'])->name('games.store');
     Route::post('/games/join', [GameSessionJoinController::class, 'store'])->name('games.join');
     Route::get('/games/{game}', [GameSessionController::class, 'show'])->name('games.show');
+    Route::post('/games/{game}/characters', [CharacterController::class, 'store'])->name('games.characters.store');
+    Route::patch('/games/{game}/characters/{sessionCharacter}/assignment', [CharacterAssignmentController::class, 'update'])->name('games.characters.assignment.update');
+    Route::delete('/games/{game}/characters/{sessionCharacter}/assignment', [CharacterAssignmentController::class, 'destroy'])->name('games.characters.assignment.destroy');
+    Route::patch('/characters/{character}/stats/{stat}', [CharacterStatController::class, 'update'])->name('characters.stats.update');
     Route::patch('/games/{game}/members/{member}/approve', [GameSessionMemberController::class, 'approve'])->name('games.members.approve');
     Route::patch('/games/{game}/members/{member}/reject', [GameSessionMemberController::class, 'reject'])->name('games.members.reject');
     Route::delete('/games/{game}/members/{member}', [GameSessionMemberController::class, 'destroy'])->name('games.members.destroy');

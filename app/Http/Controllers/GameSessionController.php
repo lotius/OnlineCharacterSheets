@@ -50,7 +50,14 @@ class GameSessionController extends Controller
     public function show(Request $request, GameSession $game): Response
     {
         $this->authorize('view', $game);
-        $game->load(['gameSystemVersion.gameSystem', 'members.user']);
+        $game->load([
+            'gameSystemVersion.gameSystem',
+            'gameSystemVersion.characterClasses',
+            'members.user',
+            'sessionCharacters.assignedUser',
+            'sessionCharacters.character.characterClass',
+            'sessionCharacters.character.stats.definition',
+        ]);
 
         return Inertia::render('Games/Show', [
             'game' => [
@@ -58,9 +65,28 @@ class GameSessionController extends Controller
                 'status' => $game->status, 'visibility' => $game->visibility,
                 'system' => $game->gameSystemVersion->gameSystem->name,
                 'can_manage_members' => $request->user()->can('manageMembers', $game),
+                'classes' => $game->gameSystemVersion->characterClasses->sortBy('display_order')->values()->map(fn ($class) => [
+                    'id' => $class->id, 'name' => $class->name,
+                ]),
+                'players' => $game->members->where('status', 'active')->whereIn('role', ['player', 'co_dm'])->map(fn ($member) => [
+                    'id' => $member->user->id, 'name' => $member->user->name,
+                ])->values(),
                 'members' => $game->members->map(fn ($member) => [
                     'id' => $member->id, 'name' => $member->user->name, 'role' => $member->role, 'status' => $member->status,
                 ]),
+                'characters' => $game->sessionCharacters->where('is_active', true)->map(fn ($sessionCharacter) => [
+                    'session_character_id' => $sessionCharacter->id,
+                    'id' => $sessionCharacter->character->id,
+                    'name' => $sessionCharacter->character->name,
+                    'class_name' => $sessionCharacter->character->characterClass?->name,
+                    'assigned_user_id' => $sessionCharacter->assigned_user_id,
+                    'assigned_user_name' => $sessionCharacter->assignedUser?->name,
+                    'can_update' => $request->user()->can('update', $sessionCharacter->character),
+                    'stats' => $sessionCharacter->character->stats->sortBy('definition.display_order')->values()->map(fn ($stat) => [
+                        'id' => $stat->id, 'key' => $stat->definition->key, 'name' => $stat->definition->name,
+                        'value' => $stat->value, 'max_value' => $stat->max_value,
+                    ]),
+                ])->values(),
             ],
         ]);
     }
