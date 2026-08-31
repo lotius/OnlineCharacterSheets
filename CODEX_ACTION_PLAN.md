@@ -3029,14 +3029,27 @@ Codex should maintain this list during implementation.
 - Added character creation, assignment, stat-boundary, and authorization tests.
 - Verification: 23 tests passing with 91 assertions; frontend lint and Vue TypeScript checks passing.
 
+### 2026-08-31 — Reverb and Echo connectivity
+
+- Installed Laravel Reverb, Laravel Echo, and the Reverb-compatible Pusher protocol client.
+- Added local Reverb environment configuration without Redis or an external broadcasting service.
+- Added authenticated private room-channel authorization for owners and active room members only.
+- Added a separate public spectator notification channel that is emitted only for `public_view` rooms.
+- Kept mutation authority entirely in authenticated Laravel HTTP actions and policies; realtime channels carry read-only synchronization notifications.
+- Added a room connection indicator and an explicit realtime ping control for connectivity verification.
+- Added tests proving active-member authorization, pending/outsider denial, protected ping dispatch, and public-channel filtering.
+- Reverb events use `ShouldBroadcastNow` for this interactive connectivity proof and do not depend on a queue worker.
+- Verified the Reverb server listens locally on port 8080 and the database queue worker starts independently.
+- Verification: 27 tests passing with 105 assertions; frontend lint, Vue TypeScript, and production build passing.
+
 ### Current focus
 
-- Install and configure Reverb/Echo for the Foundation connectivity proof, then close Milestone 1.
+- Complete a final Milestone 1 review, then begin inventory, equipment slots, spells, skills, and character trays.
 
 ```text
-[ ] Project bootstrap
+[x] Project bootstrap
 [x] Authentication
-[ ] Reverb connectivity proof
+[x] Reverb connectivity proof
 [x] Game systems
 [x] Game-system versions
 [x] Stat definitions

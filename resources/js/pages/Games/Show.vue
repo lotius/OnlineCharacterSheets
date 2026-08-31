@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { echo } from '@/echo';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { onMounted, onUnmounted, ref } from 'vue';
 
 type Member = { id: number; name: string; role: string; status: string };
 type Option = { id: number; name: string };
@@ -35,6 +37,10 @@ type Game = {
 };
 
 const props = defineProps<{ game: Game }>();
+const connectionStatus = ref<'connecting' | 'connected' | 'error'>(
+    'connecting',
+);
+const lastPing = ref<string | null>(null);
 const characterForm = useForm({ name: '', character_class_definition_id: '' });
 const createCharacter = () =>
     characterForm.post(`/games/${props.game.id}/characters`, {
@@ -61,6 +67,17 @@ const changeStat = (character: Character, stat: Stat, change: number) =>
         { value: Number(stat.value) + change },
         { preserveScroll: true },
     );
+
+onMounted(() => {
+    echo.private(`games.${props.game.id}`)
+        .subscribed(() => (connectionStatus.value = 'connected'))
+        .error(() => (connectionStatus.value = 'error'))
+        .listen('.room.realtime.ping', (event: { sent_at: string }) => {
+            lastPing.value = event.sent_at;
+        });
+});
+
+onUnmounted(() => echo.leave(`games.${props.game.id}`));
 </script>
 
 <template>
@@ -95,7 +112,38 @@ const changeStat = (character: Character, stat: Stat, change: number) =>
                         {{ game.join_code }}
                     </p>
                 </div>
+                <div class="flex items-center gap-3">
+                    <span
+                        class="size-3 rounded-full"
+                        :class="{
+                            'bg-amber-500': connectionStatus === 'connecting',
+                            'bg-emerald-500': connectionStatus === 'connected',
+                            'bg-red-500': connectionStatus === 'error',
+                        }"
+                    />
+                    <span class="text-sm text-stone-400"
+                        >Realtime {{ connectionStatus }}</span
+                    >
+                    <button
+                        type="button"
+                        class="rounded border border-stone-700 px-3 py-2 text-sm"
+                        @click="
+                            router.post(
+                                `/games/${game.id}/realtime/ping`,
+                                {},
+                                { preserveScroll: true },
+                            )
+                        "
+                    >
+                        Test
+                    </button>
+                </div>
             </header>
+
+            <p v-if="lastPing" class="mt-3 text-sm text-emerald-400">
+                Realtime ping received at
+                {{ new Date(lastPing).toLocaleTimeString() }}.
+            </p>
 
             <section class="mt-8">
                 <div class="flex items-center justify-between">
