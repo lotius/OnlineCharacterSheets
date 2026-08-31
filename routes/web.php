@@ -16,24 +16,12 @@ use App\Http\Controllers\GameSessionController;
 use App\Http\Controllers\GameSessionJoinController;
 use App\Http\Controllers\GameSessionMemberController;
 use App\Http\Controllers\PersonalCharacterSheetController;
+use App\Http\Controllers\PublicRoomController;
 use App\Http\Controllers\RoomRealtimeController;
-use App\Models\GameSession;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
-Route::get('/', fn () => Inertia::render('Welcome', [
-    'publicRooms' => GameSession::query()
-        ->where('visibility', 'public_view')
-        ->where('status', '!=', 'ended')
-        ->with('gameSystemVersion.gameSystem')
-        ->latest()
-        ->get()
-        ->map(fn (GameSession $game) => [
-            'id' => $game->id,
-            'name' => $game->name,
-            'system' => $game->gameSystemVersion->gameSystem->name,
-        ]),
-]))->name('home');
+Route::inertia('/', 'Welcome')->name('home');
+Route::get('/rooms', [PublicRoomController::class, 'index'])->name('public-rooms.index');
 Route::get('/games/{game}', [GameSessionController::class, 'show'])->name('games.show');
 Route::get('/games/{game}/characters/{character}', [PersonalCharacterSheetController::class, 'show'])->name('games.characters.show');
 

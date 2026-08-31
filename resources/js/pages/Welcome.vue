@@ -3,9 +3,6 @@ import type { User } from '@/types';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 
 const page = usePage<{ auth: { user: User | null } }>();
-defineProps<{
-    publicRooms: Array<{ id: number; name: string; system: string }>;
-}>();
 </script>
 
 <template>
@@ -49,6 +46,11 @@ defineProps<{
                                 >Log in</Link
                             >
                         </template>
+                        <Link
+                            href="/rooms"
+                            class="rounded-lg border border-stone-700 px-6 py-3 font-bold hover:border-amber-500 hover:text-amber-400"
+                            >Browse public rooms</Link
+                        >
                     </div>
                 </section>
                 <aside
@@ -62,49 +64,6 @@ defineProps<{
                     </p>
                 </aside>
             </div>
-
-            <section class="mt-16 border-t border-stone-800 pt-10">
-                <div class="flex flex-wrap items-end justify-between gap-3">
-                    <div>
-                        <p
-                            class="text-sm tracking-widest text-amber-500 uppercase"
-                        >
-                            Spectator access
-                        </p>
-                        <h2 class="mt-2 text-3xl font-black">Public rooms</h2>
-                    </div>
-                    <p class="text-sm text-stone-400">
-                        No account required. Viewing is always read-only.
-                    </p>
-                </div>
-                <div
-                    v-if="publicRooms.length"
-                    class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
-                >
-                    <Link
-                        v-for="room in publicRooms"
-                        :key="room.id"
-                        :href="`/games/${room.id}`"
-                        class="rounded-xl border border-stone-800 bg-stone-900 p-5 transition hover:border-amber-600"
-                    >
-                        <p
-                            class="text-xs tracking-wider text-amber-500 uppercase"
-                        >
-                            {{ room.system }}
-                        </p>
-                        <h3 class="mt-2 text-xl font-bold">{{ room.name }}</h3>
-                        <p class="mt-4 text-sm text-stone-400">
-                            Enter as spectator →
-                        </p>
-                    </Link>
-                </div>
-                <p
-                    v-else
-                    class="mt-6 rounded-xl border border-dashed border-stone-800 p-6 text-stone-500"
-                >
-                    There are no public rooms open right now.
-                </p>
-            </section>
         </div>
     </main>
 </template>

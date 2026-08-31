@@ -30,9 +30,11 @@ class PublicSpectatorTest extends TestCase
         $character = app(CreateCharacter::class)->handle($owner, $game, ['name' => 'The Wizard']);
         $character->note()->create(['content' => 'Hidden plan', 'is_private' => true]);
 
-        $this->get('/')->assertOk()->assertInertia(fn ($page) => $page
-            ->has('publicRooms', 1)
-            ->where('publicRooms.0.name', 'Open Table'));
+        $this->get('/')->assertOk()->assertInertia(fn ($page) => $page->missing('publicRooms'));
+        $this->get('/rooms')->assertOk()->assertInertia(fn ($page) => $page
+            ->component('PublicRooms/Index')
+            ->has('rooms', 1)
+            ->where('rooms.0.name', 'Open Table'));
 
         $this->get("/games/{$game->id}")->assertOk()->assertInertia(fn ($page) => $page
             ->where('game.is_spectator', true)
