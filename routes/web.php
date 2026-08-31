@@ -15,9 +15,25 @@ use App\Http\Controllers\GameSessionJoinController;
 use App\Http\Controllers\GameSessionMemberController;
 use App\Http\Controllers\PersonalCharacterSheetController;
 use App\Http\Controllers\RoomRealtimeController;
+use App\Models\GameSession;
 use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 
-Route::inertia('/', 'Welcome')->name('home');
+Route::get('/', fn () => Inertia::render('Welcome', [
+    'publicRooms' => GameSession::query()
+        ->where('visibility', 'public_view')
+        ->where('status', '!=', 'ended')
+        ->with('gameSystemVersion.gameSystem')
+        ->latest()
+        ->get()
+        ->map(fn (GameSession $game) => [
+            'id' => $game->id,
+            'name' => $game->name,
+            'system' => $game->gameSystemVersion->gameSystem->name,
+        ]),
+]))->name('home');
+Route::get('/games/{game}', [GameSessionController::class, 'show'])->name('games.show');
+Route::get('/games/{game}/characters/{character}', [PersonalCharacterSheetController::class, 'show'])->name('games.characters.show');
 
 Route::middleware('guest')->group(function () {
     Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
@@ -32,13 +48,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/games/create', [GameSessionController::class, 'create'])->name('games.create');
     Route::post('/games', [GameSessionController::class, 'store'])->name('games.store');
     Route::post('/games/join', [GameSessionJoinController::class, 'store'])->name('games.join');
-    Route::get('/games/{game}', [GameSessionController::class, 'show'])->name('games.show');
     Route::post('/games/{game}/realtime/ping', [RoomRealtimeController::class, 'store'])->name('games.realtime.ping');
     Route::post('/games/{game}/characters', [CharacterController::class, 'store'])->name('games.characters.store');
     Route::patch('/games/{game}/characters/{sessionCharacter}/assignment', [CharacterAssignmentController::class, 'update'])->name('games.characters.assignment.update');
     Route::delete('/games/{game}/characters/{sessionCharacter}/assignment', [CharacterAssignmentController::class, 'destroy'])->name('games.characters.assignment.destroy');
     Route::patch('/characters/{character}/stats/{stat}', [CharacterStatController::class, 'update'])->name('characters.stats.update');
-    Route::get('/games/{game}/characters/{character}', [PersonalCharacterSheetController::class, 'show'])->name('games.characters.show');
     Route::post('/characters/{character}/items', [CharacterItemController::class, 'store'])->name('characters.items.store');
     Route::patch('/characters/{character}/items/{item}', [CharacterItemController::class, 'update'])->name('characters.items.update');
     Route::delete('/characters/{character}/items/{item}', [CharacterItemController::class, 'destroy'])->name('characters.items.destroy');

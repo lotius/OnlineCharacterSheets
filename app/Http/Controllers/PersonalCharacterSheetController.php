@@ -12,10 +12,11 @@ class PersonalCharacterSheetController extends Controller
 {
     public function show(Request $request, GameSession $game, Character $character): Response
     {
-        $this->authorize('view', $game);
-        $this->authorize('view', $character);
         abort_unless($game->sessionCharacters()->where('character_id', $character->id)->exists(), 404);
-        $canUpdate = $request->user()->can('update', $character);
+        $user = $request->user();
+        $isMember = $user?->can('view', $game) ?? false;
+        abort_unless($game->visibility === 'public_view' || $isMember, 403);
+        $canUpdate = $user?->can('update', $character) ?? false;
         $character->load(['characterClass', 'stats.definition', 'items.definition', 'items.slots.definition', 'spells.definition', 'skills.definition', 'note', 'gameSystemVersion.trays', 'gameSystemVersion.slots', 'gameSystemVersion.items', 'gameSystemVersion.spells', 'gameSystemVersion.skills']);
 
         return Inertia::render('Characters/Show', ['game' => ['id' => $game->id, 'name' => $game->name], 'character' => [

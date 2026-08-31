@@ -12,6 +12,19 @@ type Stat = {
     value: number;
     max_value: number | null;
 };
+type Item = {
+    id: number;
+    name: string;
+    description: string | null;
+    quantity: number;
+    slots: string[];
+};
+type Ability = {
+    id: number;
+    name: string;
+    description: string | null;
+    is_used: boolean;
+};
 type Character = {
     session_character_id: number;
     id: number;
@@ -21,6 +34,11 @@ type Character = {
     assigned_user_name: string | null;
     can_update: boolean;
     stats: Stat[];
+    trays: Array<{ key: string; name: string; default_open: boolean }>;
+    items: Item[];
+    spells: Ability[];
+    skills: Ability[];
+    note: string | null;
 };
 type Game = {
     id: number;
@@ -30,6 +48,7 @@ type Game = {
     visibility: string;
     system: string;
     can_manage_members: boolean;
+    is_spectator: boolean;
     members: Member[];
     classes: Option[];
     players: Option[];
@@ -41,6 +60,20 @@ const connectionStatus = ref<'connecting' | 'connected' | 'error'>(
     'connecting',
 );
 const lastPing = ref<string | null>(null);
+const openCharacters = ref<Record<number, boolean>>({});
+const openSections = ref<Record<string, boolean>>({});
+const sectionKey = (characterId: number, trayKey: string) =>
+    `${characterId}:${trayKey}`;
+const toggleCharacter = (character: Character) => {
+    openCharacters.value[character.id] = !openCharacters.value[character.id];
+    if (openCharacters.value[character.id]) {
+        for (const tray of character.trays) {
+            const key = sectionKey(character.id, tray.key);
+            if (!(key in openSections.value))
+                openSections.value[key] = tray.default_open;
+        }
+    }
+};
 const characterForm = useForm({ name: '', character_class_definition_id: '' });
 const createCharacter = () =>
     characterForm.post(`/games/${props.game.id}/characters`, {
@@ -69,7 +102,16 @@ const changeStat = (character: Character, stat: Stat, change: number) =>
     );
 
 onMounted(() => {
-    echo.private(`games.${props.game.id}`)
+    if (!echo) {
+        connectionStatus.value = 'error';
+        return;
+    }
+
+    const channel = props.game.is_spectator
+        ? echo.channel(`games.public.${props.game.id}`)
+        : echo.private(`games.${props.game.id}`);
+
+    channel
         .subscribed(() => (connectionStatus.value = 'connected'))
         .error(() => (connectionStatus.value = 'error'))
         .listen('.room.realtime.ping', (event: { sent_at: string }) => {
@@ -77,15 +119,17 @@ onMounted(() => {
         });
 });
 
-onUnmounted(() => echo.leave(`games.${props.game.id}`));
+onUnmounted(() => echo?.leave(`games.${props.game.id}`));
 </script>
 
 <template>
     <Head :title="game.name" />
     <main class="min-h-screen bg-stone-950 px-6 py-10 text-stone-100">
         <div class="mx-auto max-w-6xl">
-            <Link href="/dashboard" class="text-sm text-amber-500"
-                >← Dashboard</Link
+            <Link
+                :href="game.is_spectator ? '/' : '/dashboard'"
+                class="text-sm text-amber-500"
+                >← {{ game.is_spectator ? 'Home' : 'Dashboard' }}</Link
             >
             <header
                 class="mt-5 flex flex-wrap items-start justify-between gap-5 border-b border-stone-800 pb-7"
@@ -125,6 +169,7 @@ onUnmounted(() => echo.leave(`games.${props.game.id}`));
                         >Realtime {{ connectionStatus }}</span
                     >
                     <button
+                        v-if="!game.is_spectator"
                         type="button"
                         class="rounded border border-stone-700 px-3 py-2 text-sm"
                         @click="
@@ -254,6 +299,150 @@ onUnmounted(() => echo.leave(`games.${props.game.id}`));
                                 </div>
                             </div>
                         </div>
+                        <button
+                            type="button"
+                            class="mt-5 flex w-full items-center justify-between border-t border-stone-800 pt-4 text-left font-semibold text-amber-400"
+                            @click="toggleCharacter(character)"
+                        >
+                            <span>Character sheet</span>
+                            <span>{{
+                                openCharacters[character.id] ? '−' : '+'
+                            }}</span>
+                        </button>
+                        <div
+                            v-if="openCharacters[character.id]"
+                            class="mt-3 space-y-2"
+                        >
+                            <section
+                                v-for="tray in character.trays"
+                                :key="tray.key"
+                                class="overflow-hidden rounded-lg border border-stone-800 bg-stone-950"
+                            >
+                                <button
+                                    type="button"
+                                    class="flex w-full items-center justify-between p-3 text-left font-semibold"
+                                    @click="
+                                        openSections[
+                                            sectionKey(character.id, tray.key)
+                                        ] =
+                                            !openSections[
+                                                sectionKey(
+                                                    character.id,
+                                                    tray.key,
+                                                )
+                                            ]
+                                    "
+                                >
+                                    <span>{{ tray.name }}</span>
+                                    <span>{{
+                                        openSections[
+                                            sectionKey(character.id, tray.key)
+                                        ]
+                                            ? '−'
+                                            : '+'
+                                    }}</span>
+                                </button>
+                                <div
+                                    v-if="
+                                        openSections[
+                                            sectionKey(character.id, tray.key)
+                                        ]
+                                    "
+                                    class="space-y-2 border-t border-stone-800 p-3 text-sm"
+                                >
+                                    <template
+                                        v-if="
+                                            tray.key === 'inventory' ||
+                                            tray.key === 'equipment'
+                                        "
+                                    >
+                                        <article
+                                            v-for="item in character.items"
+                                            :key="item.id"
+                                            class="rounded bg-stone-900 p-3"
+                                        >
+                                            <strong
+                                                >{{ item.name }} ×{{
+                                                    item.quantity
+                                                }}</strong
+                                            >
+                                            <p
+                                                v-if="item.description"
+                                                class="text-stone-400"
+                                            >
+                                                {{ item.description }}
+                                            </p>
+                                            <p
+                                                v-if="item.slots.length"
+                                                class="text-amber-500"
+                                            >
+                                                Equipped:
+                                                {{ item.slots.join(', ') }}
+                                            </p>
+                                        </article>
+                                        <p
+                                            v-if="!character.items.length"
+                                            class="text-stone-500"
+                                        >
+                                            No items.
+                                        </p>
+                                    </template>
+                                    <template v-else-if="tray.key === 'spells'">
+                                        <article
+                                            v-for="ability in character.spells"
+                                            :key="ability.id"
+                                            class="rounded bg-stone-900 p-3"
+                                            :class="{
+                                                'opacity-50': ability.is_used,
+                                            }"
+                                        >
+                                            <strong>{{ ability.name }}</strong>
+                                            <p class="text-stone-400">
+                                                {{ ability.description }}
+                                            </p>
+                                        </article>
+                                        <p
+                                            v-if="!character.spells.length"
+                                            class="text-stone-500"
+                                        >
+                                            No spells.
+                                        </p>
+                                    </template>
+                                    <template v-else-if="tray.key === 'skills'">
+                                        <article
+                                            v-for="ability in character.skills"
+                                            :key="ability.id"
+                                            class="rounded bg-stone-900 p-3"
+                                            :class="{
+                                                'opacity-50': ability.is_used,
+                                            }"
+                                        >
+                                            <strong>{{ ability.name }}</strong>
+                                            <p class="text-stone-400">
+                                                {{ ability.description }}
+                                            </p>
+                                        </article>
+                                        <p
+                                            v-if="!character.skills.length"
+                                            class="text-stone-500"
+                                        >
+                                            No skills.
+                                        </p>
+                                    </template>
+                                    <p
+                                        v-else-if="tray.key === 'notes'"
+                                        class="whitespace-pre-wrap text-stone-300"
+                                    >
+                                        {{
+                                            character.note || 'No public notes.'
+                                        }}
+                                    </p>
+                                    <p v-else class="text-stone-500">
+                                        No entries yet.
+                                    </p>
+                                </div>
+                            </section>
+                        </div>
                     </article>
                 </div>
                 <p
@@ -264,7 +453,7 @@ onUnmounted(() => echo.leave(`games.${props.game.id}`));
                 </p>
             </section>
 
-            <section class="mt-10">
+            <section v-if="!game.is_spectator" class="mt-10">
                 <h2 class="text-2xl font-bold">Members</h2>
                 <div class="mt-4 space-y-3">
                     <article

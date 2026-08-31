@@ -49,7 +49,9 @@ class GameSessionController extends Controller
 
     public function show(Request $request, GameSession $game): Response
     {
-        $this->authorize('view', $game);
+        $user = $request->user();
+        $isMember = $user?->can('view', $game) ?? false;
+        abort_unless($game->visibility === 'public_view' || $isMember, 403);
         $game->load([
             'gameSystemVersion.gameSystem',
             'gameSystemVersion.characterClasses',
@@ -57,36 +59,70 @@ class GameSessionController extends Controller
             'sessionCharacters.assignedUser',
             'sessionCharacters.character.characterClass',
             'sessionCharacters.character.stats.definition',
+            'sessionCharacters.character.items.definition',
+            'sessionCharacters.character.items.slots.definition',
+            'sessionCharacters.character.spells.definition',
+            'sessionCharacters.character.skills.definition',
+            'sessionCharacters.character.note',
+            'gameSystemVersion.trays',
         ]);
+
+        $canManageMembers = $user?->can('manageMembers', $game) ?? false;
 
         return Inertia::render('Games/Show', [
             'game' => [
                 'id' => $game->id, 'name' => $game->name, 'join_code' => $game->join_code,
                 'status' => $game->status, 'visibility' => $game->visibility,
                 'system' => $game->gameSystemVersion->gameSystem->name,
-                'can_manage_members' => $request->user()->can('manageMembers', $game),
+                'can_manage_members' => $canManageMembers,
+                'is_spectator' => ! $isMember,
                 'classes' => $game->gameSystemVersion->characterClasses->sortBy('display_order')->values()->map(fn ($class) => [
                     'id' => $class->id, 'name' => $class->name,
                 ]),
                 'players' => $game->members->where('status', 'active')->whereIn('role', ['player', 'co_dm'])->map(fn ($member) => [
                     'id' => $member->user->id, 'name' => $member->user->name,
                 ])->values(),
-                'members' => $game->members->map(fn ($member) => [
+                'members' => $isMember ? $game->members->map(fn ($member) => [
                     'id' => $member->id, 'name' => $member->user->name, 'role' => $member->role, 'status' => $member->status,
-                ]),
-                'characters' => $game->sessionCharacters->where('is_active', true)->map(fn ($sessionCharacter) => [
-                    'session_character_id' => $sessionCharacter->id,
-                    'id' => $sessionCharacter->character->id,
-                    'name' => $sessionCharacter->character->name,
-                    'class_name' => $sessionCharacter->character->characterClass?->name,
-                    'assigned_user_id' => $sessionCharacter->assigned_user_id,
-                    'assigned_user_name' => $sessionCharacter->assignedUser?->name,
-                    'can_update' => $request->user()->can('update', $sessionCharacter->character),
-                    'stats' => $sessionCharacter->character->stats->sortBy('definition.display_order')->values()->map(fn ($stat) => [
-                        'id' => $stat->id, 'key' => $stat->definition->key, 'name' => $stat->definition->name,
-                        'value' => $stat->value, 'max_value' => $stat->max_value,
-                    ]),
-                ])->values(),
+                ]) : [],
+                'characters' => $game->sessionCharacters->where('is_active', true)->map(function ($sessionCharacter) use ($user, $game) {
+                    $character = $sessionCharacter->character;
+                    $canUpdate = $user?->can('update', $character) ?? false;
+
+                    return [
+                        'session_character_id' => $sessionCharacter->id,
+                        'id' => $character->id,
+                        'name' => $character->name,
+                        'class_name' => $character->characterClass?->name,
+                        'assigned_user_id' => $sessionCharacter->assigned_user_id,
+                        'assigned_user_name' => $sessionCharacter->assignedUser?->name,
+                        'can_update' => $canUpdate,
+                        'stats' => $character->stats->sortBy('definition.display_order')->values()->map(fn ($stat) => [
+                            'id' => $stat->id, 'key' => $stat->definition->key, 'name' => $stat->definition->name,
+                            'value' => $stat->value, 'max_value' => $stat->max_value,
+                        ]),
+                        'trays' => $game->gameSystemVersion->trays->sortBy('display_order')->values()->map(fn ($tray) => [
+                            'key' => $tray->key, 'name' => $tray->name, 'default_open' => $tray->default_open,
+                        ]),
+                        'items' => $character->items->map(fn ($item) => [
+                            'id' => $item->id, 'name' => $item->custom_name ?? $item->definition?->name,
+                            'description' => $item->custom_description ?? $item->definition?->description,
+                            'quantity' => $item->quantity,
+                            'slots' => $item->slots->map(fn ($slot) => $slot->definition->name)->values(),
+                        ]),
+                        'spells' => $character->spells->map(fn ($spell) => [
+                            'id' => $spell->id, 'name' => $spell->definition->name,
+                            'description' => $spell->definition->description, 'is_used' => $spell->is_used,
+                        ]),
+                        'skills' => $character->skills->map(fn ($skill) => [
+                            'id' => $skill->id, 'name' => $skill->definition->name,
+                            'description' => $skill->definition->description, 'is_used' => $skill->is_used,
+                        ]),
+                        'note' => ! $character->note || (! $character->note->is_private || $canUpdate)
+                            ? $character->note?->content
+                            : null,
+                    ];
+                })->values(),
             ],
         ]);
     }
