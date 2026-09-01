@@ -84,8 +84,11 @@ class FunctionalCharacterSheetTest extends TestCase
 
         $this->actingAs($player)->put("/characters/{$character->id}/notes", ['content' => 'Secret objective', 'is_private' => true]);
         $this->actingAs($player)->get("/games/{$game->id}/characters/{$character->id}")->assertOk()->assertInertia(fn ($page) => $page->where('character.note.content', 'Secret objective'));
-        $this->actingAs($observer)->get("/games/{$game->id}/characters/{$character->id}")->assertOk()->assertInertia(fn ($page) => $page->where('character.note', null));
-        $this->actingAs($owner)->get("/games/{$game->id}/characters/{$character->id}")->assertOk();
+        $this->actingAs($observer)->get("/games/{$game->id}/characters/{$character->id}")->assertOk()->assertInertia(fn ($page) => $page
+            ->where('character.can_update', false)
+            ->where('character.note', null));
+        $this->actingAs($owner)->get("/games/{$game->id}/characters/{$character->id}")->assertOk()->assertInertia(fn ($page) => $page
+            ->where('character.can_update', true));
     }
 
     public function test_unassigned_or_outside_player_cannot_mutate_character_content(): void

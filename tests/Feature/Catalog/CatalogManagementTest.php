@@ -4,6 +4,7 @@ namespace Tests\Feature\Catalog;
 
 use App\Actions\Characters\CreateCharacter;
 use App\Actions\GameSessions\CreateGameSession;
+use App\Models\CharacterClassDefinition;
 use App\Models\GameSystemVersion;
 use App\Models\ItemDefinition;
 use App\Models\User;
@@ -38,6 +39,48 @@ class CatalogManagementTest extends TestCase
             'owner_user_id' => null,
             'scope_key' => 'system',
         ]);
+    }
+
+    public function test_heroquest_core_version_displays_as_heroquest(): void
+    {
+        $version = GameSystemVersion::query()->with('gameSystem')->sole();
+        $admin = User::factory()->create(['is_admin' => true]);
+
+        $this->assertSame('HeroQuest', $version->display_name);
+
+        $this->actingAs($admin)
+            ->get('/admin/catalog')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Catalog/Index')
+                ->where('versions.0.name', 'HeroQuest'));
+    }
+
+    public function test_administrators_can_create_game_elements_piecemeal(): void
+    {
+        $version = GameSystemVersion::query()->sole();
+        $admin = User::factory()->create(['is_admin' => true]);
+
+        $this->actingAs($admin)->post("/admin/catalog/{$version->id}/classes", [
+            'name' => 'Knight',
+            'key' => 'knight',
+            'description' => 'A sturdy armored hero.',
+            'display_order' => 50,
+            'configuration_json' => json_encode(['default_stats' => ['body' => 7, 'mind' => 3]]),
+        ])->assertRedirect()->assertSessionDoesntHaveErrors();
+
+        $this->assertDatabaseHas('character_class_definitions', [
+            'game_system_version_id' => $version->id,
+            'owner_user_id' => null,
+            'scope_key' => 'system',
+            'key' => 'knight',
+            'name' => 'Knight',
+        ]);
+
+        $this->assertSame(
+            ['body' => 7, 'mind' => 3],
+            CharacterClassDefinition::query()->where('key', 'knight')->sole()->configuration['default_stats'],
+        );
     }
 
     public function test_homebrew_belongs_to_a_dm_account_and_is_reusable_across_their_rooms(): void

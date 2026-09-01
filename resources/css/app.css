@@ -9,3 +9,223 @@
         'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
         'Noto Color Emoji';
 }
+
+:root {
+    --hq-void: #080605;
+    --hq-ink: #1b1410;
+    --hq-panel: #2a1d16;
+    --hq-panel-deep: #120d0b;
+    --hq-parchment: #ead8a8;
+    --hq-parchment-dim: #bda66f;
+    --hq-gold: #d9a441;
+    --hq-red: #8f1d16;
+    --hq-red-bright: #b83224;
+    --hq-line: #6e4a24;
+}
+
+body {
+    background:
+        radial-gradient(
+            circle at 18% 0%,
+            rgb(143 29 22 / 0.28),
+            transparent 28rem
+        ),
+        radial-gradient(
+            circle at 90% 16%,
+            rgb(217 164 65 / 0.14),
+            transparent 24rem
+        ),
+        linear-gradient(180deg, #130d0b 0%, var(--hq-void) 38%, #060403 100%);
+}
+
+.min-h-screen.bg-stone-950,
+.min-h-screen.bg-stone-950\/95 {
+    background:
+        linear-gradient(rgb(8 6 5 / 0.88), rgb(8 6 5 / 0.94)),
+        repeating-linear-gradient(
+            90deg,
+            rgb(234 216 168 / 0.035) 0 1px,
+            transparent 1px 7px
+        ),
+        radial-gradient(
+            circle at 12% 8%,
+            rgb(143 29 22 / 0.22),
+            transparent 26rem
+        ),
+        var(--hq-void);
+    color: #f5ead2;
+}
+
+.bg-stone-900,
+.bg-gradient-to-br {
+    background:
+        linear-gradient(180deg, rgb(51 34 25 / 0.96), rgb(27 20 16 / 0.98)),
+        repeating-linear-gradient(
+            135deg,
+            rgb(234 216 168 / 0.04) 0 1px,
+            transparent 1px 8px
+        ) !important;
+}
+
+.bg-stone-950 {
+    background-color: var(--hq-panel-deep) !important;
+}
+
+.border-stone-800,
+.border-stone-700,
+.border-amber-700\/40,
+.border-amber-700\/30 {
+    border-color: rgb(110 74 36 / 0.78) !important;
+}
+
+.rounded-lg,
+.rounded-xl,
+.rounded-2xl,
+.rounded-3xl {
+    border-radius: 6px !important;
+}
+
+.shadow-2xl {
+    box-shadow:
+        0 18px 50px rgb(0 0 0 / 0.36),
+        inset 0 1px 0 rgb(234 216 168 / 0.09) !important;
+}
+
+.text-stone-100 {
+    color: #f5ead2 !important;
+}
+
+.text-stone-300,
+.text-stone-400 {
+    color: var(--hq-parchment-dim) !important;
+}
+
+.text-amber-500,
+.text-amber-400 {
+    color: var(--hq-gold) !important;
+}
+
+.bg-amber-600 {
+    background:
+        linear-gradient(180deg, #d9a441, #a66d20), var(--hq-gold) !important;
+    color: #160d08 !important;
+    box-shadow:
+        inset 0 1px 0 rgb(255 244 190 / 0.38),
+        0 2px 0 #5f2b14;
+}
+
+.hover\:bg-amber-500:hover,
+.hover\:bg-amber-600:hover,
+.enabled\:hover\:bg-amber-700:enabled:hover {
+    background:
+        linear-gradient(180deg, #efc25e, #b87b27), var(--hq-gold) !important;
+}
+
+input,
+select,
+textarea {
+    border-color: rgb(110 74 36 / 0.82) !important;
+    background: linear-gradient(
+        180deg,
+        rgb(18 13 11 / 0.96),
+        rgb(8 6 5 / 0.98)
+    ) !important;
+    color: #f5ead2 !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: var(--hq-gold) !important;
+    box-shadow: 0 0 0 2px rgb(217 164 65 / 0.28);
+}
+
+header.border-b,
+section.border,
+article.border,
+form.border,
+nav.border {
+    box-shadow: inset 0 1px 0 rgb(234 216 168 / 0.08);
+}
+
+h1,
+h2,
+h3 {
+    letter-spacing: 0;
+}
+
+.tracking-\[0\.25em\],
+.tracking-\[0\.3em\],
+.tracking-widest {
+    color: var(--hq-gold) !important;
+    text-shadow: 0 1px 0 rgb(0 0 0 / 0.75);
+}
+
+.hq-rule-heading {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.hq-rule-heading::after {
+    content: '';
+    height: 1px;
+    flex: 1;
+    background: linear-gradient(90deg, var(--hq-red), transparent);
+}
+
+.p-8 {
+    padding: 1.5rem !important;
+}
+
+.p-6 {
+    padding: 1.25rem !important;
+}
+
+.p-5 {
+    padding: 1rem !important;
+}
+
+.py-12 {
+    padding-top: 2.5rem !important;
+    padding-bottom: 2.5rem !important;
+}
+
+.py-10 {
+    padding-top: 2rem !important;
+    padding-bottom: 2rem !important;
+}
+
+.mt-10 {
+    margin-top: 2rem !important;
+}
+
+.mt-8 {
+    margin-top: 1.5rem !important;
+}
+
+@keyframes stat-value-flash {
+    0% {
+        background-color: color-mix(
+            in oklab,
+            var(--color-amber-400) 35%,
+            transparent
+        );
+        box-shadow:
+            0 0 0 1px
+                color-mix(in oklab, var(--color-amber-300) 70%, transparent),
+            0 0 22px
+                color-mix(in oklab, var(--color-amber-400) 35%, transparent);
+        transform: scale(1.08);
+    }
+
+    100% {
+        background-color: transparent;
+        box-shadow: 0 0 0 0 transparent;
+        transform: scale(1);
+    }
+}
+
+.stat-value-flash {
+    animation: stat-value-flash 700ms ease-out;
+}

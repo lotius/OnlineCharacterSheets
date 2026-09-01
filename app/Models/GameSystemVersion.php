@@ -2,10 +2,12 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class GameSystemVersion extends Model
 {
@@ -16,6 +18,24 @@ class GameSystemVersion extends Model
     protected function casts(): array
     {
         return ['configuration' => 'array', 'is_current' => 'boolean'];
+    }
+
+    protected function displayName(): Attribute
+    {
+        return Attribute::get(function (): string {
+            $systemName = $this->gameSystem?->name ?? 'Game system';
+            $versionName = $this->name ?: $this->version;
+
+            if (
+                blank($versionName) ||
+                Str::lower($versionName) === 'core' ||
+                (blank($this->name) && $versionName === '1.0')
+            ) {
+                return $systemName;
+            }
+
+            return "{$systemName} - {$versionName}";
+        });
     }
 
     public function gameSystem(): BelongsTo

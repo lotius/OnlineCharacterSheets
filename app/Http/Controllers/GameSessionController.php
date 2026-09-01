@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\GameSessions\BroadcastGameSessionUpdate;
 use App\Actions\GameSessions\CreateGameSession;
 use App\Http\Requests\GameSessions\StoreGameSessionRequest;
+use App\Http\Requests\GameSessions\UpdateGameSessionRequest;
 use App\Models\CharacterClassDefinition;
 use App\Models\GameSession;
 use App\Models\GameSystemVersion;
@@ -15,6 +17,8 @@ use Inertia\Response;
 
 class GameSessionController extends Controller
 {
+    private const VIEWER_STALE_SECONDS = 45;
+
     public function index(Request $request): Response
     {
         $memberships = $request->user()->gameSessionMemberships()->with('gameSession.gameSystemVersion.gameSystem')->latest()->get();
@@ -36,17 +40,33 @@ class GameSessionController extends Controller
         return Inertia::render('Games/Create', [
             'versions' => GameSystemVersion::query()->where('is_current', true)->whereHas('gameSystem', fn ($query) => $query->where('is_active', true))->with('gameSystem')->get()->map(fn ($version) => [
                 'id' => $version->id,
-                'name' => $version->gameSystem->name.' — '.($version->name ?? $version->version),
+                'name' => $version->display_name,
             ]),
         ]);
     }
 
-    public function store(StoreGameSessionRequest $request, CreateGameSession $create): RedirectResponse
+    public function store(StoreGameSessionRequest $request, CreateGameSession $create, BroadcastGameSessionUpdate $broadcast): RedirectResponse
     {
         $version = GameSystemVersion::query()->findOrFail($request->integer('game_system_version_id'));
         $session = $create->handle($request->user(), $version, $request->validated());
+        $broadcast->room($session, includePublicDirectory: $session->visibility === 'public_view');
 
         return redirect()->route('games.show', $session)->with('success', 'Room created.');
+    }
+
+    public function update(UpdateGameSessionRequest $request, GameSession $game, BroadcastGameSessionUpdate $broadcast): RedirectResponse
+    {
+        $wasPublic = $game->visibility === 'public_view';
+
+        $game->update($request->validated());
+
+        $broadcast->room(
+            $game,
+            includePublicChannel: $wasPublic || $game->visibility === 'public_view',
+            includePublicDirectory: $wasPublic || $game->visibility === 'public_view',
+        );
+
+        return back()->with('success', 'Room settings saved.');
     }
 
     public function show(Request $request, GameSession $game): Response
@@ -77,8 +97,10 @@ class GameSessionController extends Controller
             'game' => [
                 'id' => $game->id, 'name' => $game->name, 'join_code' => $game->join_code,
                 'status' => $game->status, 'visibility' => $game->visibility,
+                'viewer_count' => $game->viewers()->where('last_seen_at', '>=', now()->subSeconds(self::VIEWER_STALE_SECONDS))->count(),
                 'system' => $game->gameSystemVersion->gameSystem->name,
                 'can_manage_members' => $canManageMembers,
+                'can_manage_settings' => $user?->id === $game->owner_user_id,
                 'is_spectator' => ! $isMember,
                 'classes' => $classes->map(fn ($class) => [
                     'id' => $class->id, 'name' => $class->name,

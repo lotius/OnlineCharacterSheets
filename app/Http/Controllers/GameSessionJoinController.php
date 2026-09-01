@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\GameSessions\BroadcastGameSessionUpdate;
 use App\Actions\GameSessions\RequestGameSessionJoin;
 use App\Http\Requests\GameSessions\JoinGameSessionRequest;
 use App\Models\GameSession;
@@ -10,7 +11,7 @@ use Illuminate\Support\Str;
 
 class GameSessionJoinController extends Controller
 {
-    public function store(JoinGameSessionRequest $request, RequestGameSessionJoin $join): RedirectResponse
+    public function store(JoinGameSessionRequest $request, RequestGameSessionJoin $join, BroadcastGameSessionUpdate $broadcast): RedirectResponse
     {
         $game = GameSession::query()->where('join_code', Str::upper((string) $request->string('join_code')))->first();
 
@@ -23,6 +24,7 @@ class GameSessionJoinController extends Controller
         }
 
         $membership = $join->handle($request->user(), $game);
+        $broadcast->room($game);
 
         return redirect()->route('games.index')->with('success', $membership->status === 'active' ? 'Room joined.' : 'Join request sent.');
     }

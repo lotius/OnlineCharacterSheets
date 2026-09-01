@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import AppHeader from '@/components/AppHeader.vue';
+import { Head, useForm } from '@inertiajs/vue3';
 defineProps<{ versions: Array<{ id: number; name: string }> }>();
 const form = useForm({
     name: '',
@@ -9,14 +10,14 @@ const form = useForm({
 </script>
 <template>
     <Head title="Create room" />
-    <main class="min-h-screen bg-stone-950 px-6 py-12 text-stone-100">
+    <main class="min-h-screen bg-stone-950 text-stone-100">
+        <AppHeader current="dashboard" />
         <section
-            class="mx-auto max-w-xl rounded-2xl border border-amber-700/40 bg-stone-900 p-8"
+            class="mx-auto mt-10 max-w-xl border border-amber-700/40 bg-stone-900 p-8 shadow-2xl"
         >
-            <Link href="/dashboard" class="text-sm text-amber-500"
-                >← Dashboard</Link
-            >
-            <h1 class="mt-5 text-3xl font-bold">Create a game room</h1>
+            <h1 class="hq-rule-heading mt-5 text-3xl font-bold">
+                Create a game room
+            </h1>
             <form class="mt-8 space-y-5" @submit.prevent="form.post('/games')">
                 <label class="block"
                     ><span>Room name</span

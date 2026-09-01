@@ -81,6 +81,10 @@ class CharacterWorkflowTest extends TestCase
         $this->actingAs($assigned)->patch("/characters/{$character->id}/stats/{$body->id}", ['value' => 3])->assertRedirect();
         $this->assertSame(3, $body->refresh()->value);
         $this->actingAs($other)->patch("/characters/{$character->id}/stats/{$body->id}", ['value' => 2])->assertForbidden();
+        $this->actingAs($other)->get("/games/{$game->id}")->assertOk()->assertInertia(fn ($page) => $page
+            ->where('game.characters.0.can_update', false));
+        $this->actingAs($assigned)->get("/games/{$game->id}")->assertOk()->assertInertia(fn ($page) => $page
+            ->where('game.characters.0.can_update', true));
         $this->actingAs($owner)->patch("/characters/{$character->id}/stats/{$body->id}", ['value' => 2])->assertRedirect();
         $this->assertSame(2, $body->refresh()->value);
     }

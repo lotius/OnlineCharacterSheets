@@ -37,4 +37,9 @@ class GameSession extends Model
     {
         return $this->hasMany(SessionCharacter::class);
     }
+
+    public function viewers(): HasMany
+    {
+        return $this->hasMany(GameSessionViewer::class);
+    }
 }

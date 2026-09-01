@@ -79,7 +79,9 @@ class RealtimeConnectivityTest extends TestCase
         $this->assertCount(2, $publicChannels);
         $this->assertInstanceOf(Channel::class, $publicChannels[1]);
         $this->assertSame("games.public.{$publicGame->id}", $publicChannels[1]->name);
-        $this->assertSame(['game_id', 'revision', 'sent_at'], array_keys((new RoomRealtimePinged($publicGame))->broadcastWith()));
+        $this->assertSame(['game_id', 'room_name', 'revision', 'visibility', 'sent_at'], array_keys((new RoomRealtimePinged($publicGame))->broadcastWith()));
+        $this->assertSame('Public Trial', (new RoomRealtimePinged($publicGame))->broadcastWith()['room_name']);
+        $this->assertSame('public_view', (new RoomRealtimePinged($publicGame))->broadcastWith()['visibility']);
     }
 
     /** @return array{User, GameSession} */

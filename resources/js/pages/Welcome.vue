@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppHeader from '@/components/AppHeader.vue';
 import type { User } from '@/types';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 
@@ -7,10 +8,11 @@ const page = usePage<{ auth: { user: User | null } }>();
 
 <template>
     <Head title="Welcome" />
-    <main
-        class="flex min-h-screen items-center bg-stone-950 px-6 py-16 text-stone-100"
-    >
-        <div class="mx-auto w-full max-w-6xl">
+    <main class="min-h-screen bg-stone-950 text-stone-100">
+        <AppHeader current="home" />
+        <div
+            class="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-6xl items-center px-6 py-16"
+        >
             <div class="grid gap-12 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
                 <section>
                     <p
@@ -19,7 +21,7 @@ const page = usePage<{ auth: { user: User | null } }>();
                         Gather your party
                     </p>
                     <h1
-                        class="mt-5 max-w-3xl text-5xl leading-tight font-black sm:text-7xl"
+                        class="hq-rule-heading mt-5 max-w-3xl text-5xl leading-tight font-black sm:text-7xl"
                     >
                         Live character sheets for the whole table.
                     </h1>
@@ -54,9 +56,8 @@ const page = usePage<{ auth: { user: User | null } }>();
                     </div>
                 </section>
                 <aside
-                    class="rounded-3xl border border-amber-700/30 bg-gradient-to-br from-stone-900 to-amber-950/30 p-8 shadow-2xl"
+                    class="border border-amber-700/30 bg-gradient-to-br from-stone-900 to-amber-950/30 p-8 shadow-2xl"
                 >
-                    <p class="text-5xl">⚔</p>
                     <h2 class="mt-6 text-2xl font-bold">Generic at its core</h2>
                     <p class="mt-3 leading-7 text-stone-400">
                         HeroQuest-inspired presentation backed by reusable game

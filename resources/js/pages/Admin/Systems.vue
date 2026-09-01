@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppHeader from '@/components/AppHeader.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 
 defineProps<{
@@ -34,23 +35,23 @@ const versionForm = (id: number) => {
 </script>
 <template>
     <Head title="Game systems" />
-    <main class="min-h-screen bg-stone-950 px-6 py-10 text-stone-100">
-        <div class="mx-auto max-w-6xl">
-            <Link href="/dashboard" class="text-sm text-amber-500"
-                >← Dashboard</Link
-            >
+    <main class="min-h-screen bg-stone-950 text-stone-100">
+        <AppHeader current="admin" />
+        <div class="mx-auto max-w-6xl px-6 py-10">
             <header class="mt-5">
                 <p class="text-sm tracking-widest text-amber-500 uppercase">
                     Administrator
                 </p>
-                <h1 class="mt-2 text-4xl font-black">Game systems</h1>
+                <h1 class="hq-rule-heading mt-2 text-4xl font-black">
+                    Game systems
+                </h1>
             </header>
             <div class="mt-8 grid gap-6 lg:grid-cols-[1fr_380px]">
                 <section class="space-y-4">
                     <article
                         v-for="system in systems"
                         :key="system.id"
-                        class="rounded-xl border border-stone-800 bg-stone-900 p-5"
+                        class="border border-stone-800 bg-stone-900 p-5"
                     >
                         <div class="flex justify-between">
                             <div>
@@ -106,7 +107,7 @@ const versionForm = (id: number) => {
                     </article>
                 </section>
                 <form
-                    class="h-fit space-y-4 rounded-xl border border-stone-800 bg-stone-900 p-5"
+                    class="h-fit space-y-4 border border-stone-800 bg-stone-900 p-5"
                     @submit.prevent="systemForm.post('/admin/systems')"
                 >
                     <h2 class="text-xl font-bold">New game system</h2>

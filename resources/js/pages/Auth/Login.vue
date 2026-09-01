@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppHeader from '@/components/AppHeader.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 
 const form = useForm({ email: '', password: '', remember: false });
@@ -8,18 +9,19 @@ const submit = () =>
 
 <template>
     <Head title="Log in" />
-    <main
-        class="flex min-h-screen items-center justify-center bg-stone-950 px-6 py-12 text-stone-100"
-    >
+    <main class="min-h-screen bg-stone-950 text-stone-100">
+        <AppHeader />
         <section
-            class="w-full max-w-md rounded-2xl border border-amber-700/40 bg-stone-900 p-8 shadow-2xl"
+            class="mx-auto mt-12 w-full max-w-md border border-amber-700/40 bg-stone-900 p-8 shadow-2xl"
         >
             <p
                 class="text-sm font-semibold tracking-[0.25em] text-amber-500 uppercase"
             >
                 Online Character Sheets
             </p>
-            <h1 class="mt-3 text-3xl font-bold">Return to the table</h1>
+            <h1 class="hq-rule-heading mt-3 text-3xl font-bold">
+                Return to the table
+            </h1>
             <p class="mt-2 text-sm text-stone-400">
                 Log in to manage your rooms and characters.
             </p>

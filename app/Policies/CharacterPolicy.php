@@ -14,10 +14,6 @@ class CharacterPolicy
 
     public function update(User $user, Character $character): bool
     {
-        if ($character->owner_user_id === $user->id) {
-            return true;
-        }
-
         return $character->sessions()->where(function ($query) use ($user) {
             $query->where('assigned_user_id', $user->id)
                 ->orWhereHas('gameSession', fn ($session) => $session->where('owner_user_id', $user->id)->orWhereHas('members', fn ($member) => $member->where('user_id', $user->id)->whereIn('role', ['dm', 'co_dm'])->where('status', 'active')));

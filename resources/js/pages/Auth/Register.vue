@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppHeader from '@/components/AppHeader.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 
 const form = useForm({
@@ -15,18 +16,19 @@ const submit = () =>
 
 <template>
     <Head title="Create account" />
-    <main
-        class="flex min-h-screen items-center justify-center bg-stone-950 px-6 py-12 text-stone-100"
-    >
+    <main class="min-h-screen bg-stone-950 text-stone-100">
+        <AppHeader />
         <section
-            class="w-full max-w-md rounded-2xl border border-amber-700/40 bg-stone-900 p-8 shadow-2xl"
+            class="mx-auto mt-12 w-full max-w-md border border-amber-700/40 bg-stone-900 p-8 shadow-2xl"
         >
             <p
                 class="text-sm font-semibold tracking-[0.25em] text-amber-500 uppercase"
             >
                 Online Character Sheets
             </p>
-            <h1 class="mt-3 text-3xl font-bold">Join the party</h1>
+            <h1 class="hq-rule-heading mt-3 text-3xl font-bold">
+                Join the party
+            </h1>
             <p class="mt-2 text-sm text-stone-400">
                 Create an account to join rooms and control assigned characters.
             </p>

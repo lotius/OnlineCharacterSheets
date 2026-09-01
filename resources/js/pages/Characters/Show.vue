@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import AppHeader from '@/components/AppHeader.vue';
+import { echo } from '@/echo';
+import { sendRoomViewerHeartbeat } from '@/lib/roomViewers';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { reactive } from 'vue';
+import { onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 
 type Option = { id: number; name: string };
 type Stat = {
@@ -39,11 +42,22 @@ type Character = {
     skills: Ability[];
     note: { content: string | null; is_private: boolean } | null;
 };
+type RoomRealtimePayload = {
+    room_name: string;
+    visibility: string;
+};
 
 const props = defineProps<{
-    game: { id: number; name: string };
+    game: { id: number; name: string; is_spectator: boolean };
     character: Character;
 }>();
+const connectionStatus = ref<'connecting' | 'connected' | 'error'>(
+    'connecting',
+);
+const changedStats = ref<Record<number, boolean>>({});
+let stopConnectionListener: (() => void) | null = null;
+let subscribedChannelName: string | null = null;
+let viewerHeartbeatInterval: number | null = null;
 const open = reactive(
     Object.fromEntries(
         props.character.trays.map((tray) => [tray.key, tray.default_open]),
@@ -99,11 +113,92 @@ const removeAbility = (kind: 'spells' | 'skills', ability: Ability) =>
         `/characters/${props.character.id}/${kind}/${ability.id}`,
         preserve,
     );
+const currentStatValues = () =>
+    Object.fromEntries(
+        props.character.stats.map((entry) => [
+            entry.id,
+            JSON.stringify(entry.value),
+        ]),
+    );
+const flashStat = (id: number) => {
+    changedStats.value[id] = false;
+    requestAnimationFrame(() => {
+        changedStats.value[id] = true;
+        window.setTimeout(() => {
+            changedStats.value[id] = false;
+        }, 700);
+    });
+};
+
+watch(currentStatValues, (current, previous) => {
+    for (const [id, value] of Object.entries(current)) {
+        if (previous[id] !== undefined && previous[id] !== value) {
+            flashStat(Number(id));
+        }
+    }
+});
+
+onMounted(() => {
+    if (!echo) {
+        connectionStatus.value = 'error';
+        return;
+    }
+
+    const channel = props.game.is_spectator
+        ? echo.channel(`games.public.${props.game.id}`)
+        : echo.private(`games.${props.game.id}`);
+    subscribedChannelName = props.game.is_spectator
+        ? `games.public.${props.game.id}`
+        : `games.${props.game.id}`;
+    const connection = echo.connector.pusher.connection;
+    const updateConnectionStatus = ({ current }: { current: string }) => {
+        if (current === 'connected') connectionStatus.value = 'connected';
+        else if (current === 'failed' || current === 'unavailable')
+            connectionStatus.value = 'error';
+        else connectionStatus.value = 'connecting';
+    };
+
+    connection.bind('state_change', updateConnectionStatus);
+    stopConnectionListener = () =>
+        connection.unbind('state_change', updateConnectionStatus);
+
+    channel
+        .listen('.room.realtime.ping', (payload: RoomRealtimePayload) => {
+            if (
+                props.game.is_spectator &&
+                payload.visibility !== 'public_view'
+            ) {
+                router.visit(
+                    `/rooms?room_closed_name=${encodeURIComponent(payload.room_name)}`,
+                );
+                return;
+            }
+
+            router.reload({
+                only: ['game', 'character'],
+            });
+        })
+        .subscribed(() => (connectionStatus.value = 'connected'))
+        .error(() => (connectionStatus.value = 'error'));
+
+    void sendRoomViewerHeartbeat(props.game.id);
+    viewerHeartbeatInterval = window.setInterval(
+        () => void sendRoomViewerHeartbeat(props.game.id),
+        15000,
+    );
+});
+
+onUnmounted(() => {
+    stopConnectionListener?.();
+    if (viewerHeartbeatInterval) window.clearInterval(viewerHeartbeatInterval);
+    if (subscribedChannelName) echo?.leave(subscribedChannelName);
+});
 </script>
 
 <template>
     <Head :title="character.name" />
     <main class="min-h-screen bg-stone-950 text-stone-100">
+        <AppHeader :current="game.is_spectator ? 'rooms' : 'dashboard'" />
         <header
             class="sticky top-0 z-10 border-b border-amber-800/40 bg-stone-950/95 px-4 py-4 backdrop-blur"
         >
@@ -116,16 +211,35 @@ const removeAbility = (kind: 'spells' | 'skills', ability: Ability) =>
                         class="text-xs text-amber-500"
                         >← {{ game.name }}</Link
                     >
-                    <h1 class="text-2xl font-black">{{ character.name }}</h1>
+                    <h1 class="hq-rule-heading text-2xl font-black">
+                        {{ character.name }}
+                    </h1>
                     <p class="text-sm text-stone-400">
                         {{ character.class_name || 'Unclassed' }}
                     </p>
                 </div>
-                <div class="flex gap-2">
+                <div class="flex items-center gap-3">
+                    <div
+                        class="flex items-center"
+                        :title="`Realtime ${connectionStatus}`"
+                        role="status"
+                        :aria-label="`Realtime ${connectionStatus}`"
+                    >
+                        <span
+                            class="size-3 rounded-full ring-4 ring-stone-950"
+                            :class="{
+                                'bg-amber-500':
+                                    connectionStatus === 'connecting',
+                                'bg-emerald-500':
+                                    connectionStatus === 'connected',
+                                'bg-red-500': connectionStatus === 'error',
+                            }"
+                        />
+                    </div>
                     <div
                         v-for="entry in character.stats"
                         :key="entry.id"
-                        class="min-w-20 rounded-lg bg-stone-900 p-2 text-center"
+                        class="min-w-20 border border-stone-800 bg-stone-900 p-2 text-center"
                     >
                         <p
                             class="text-[10px] tracking-wide text-stone-400 uppercase"
@@ -134,23 +248,28 @@ const removeAbility = (kind: 'spells' | 'skills', ability: Ability) =>
                         </p>
                         <div class="flex items-center justify-center gap-2">
                             <button
-                                :disabled="
-                                    !character.can_update || entry.value <= 0
-                                "
+                                v-if="character.can_update"
+                                :disabled="entry.value <= 0"
+                                class="size-7 rounded bg-stone-800 font-bold transition duration-150 enabled:hover:bg-amber-700 enabled:hover:text-stone-950 enabled:active:scale-90 enabled:active:bg-amber-500 disabled:opacity-30"
                                 @click="stat(entry, -1)"
                             >
                                 −</button
-                            ><strong class="text-amber-400"
+                            ><strong
+                                class="rounded-md px-2 py-1 text-amber-400 transition"
+                                :class="{
+                                    'stat-value-flash': changedStats[entry.id],
+                                }"
                                 >{{ entry.value
                                 }}<small v-if="entry.max_value !== null"
                                     >/{{ entry.max_value }}</small
                                 ></strong
                             ><button
+                                v-if="character.can_update"
                                 :disabled="
-                                    !character.can_update ||
-                                    (entry.max_value !== null &&
-                                        entry.value >= entry.max_value)
+                                    entry.max_value !== null &&
+                                    entry.value >= entry.max_value
                                 "
+                                class="size-7 rounded bg-stone-800 font-bold transition duration-150 enabled:hover:bg-amber-700 enabled:hover:text-stone-950 enabled:active:scale-90 enabled:active:bg-amber-500 disabled:opacity-30"
                                 @click="stat(entry, 1)"
                             >
                                 +
@@ -164,7 +283,7 @@ const removeAbility = (kind: 'spells' | 'skills', ability: Ability) =>
             <section
                 v-for="tray in character.trays"
                 :key="tray.key"
-                class="overflow-hidden rounded-xl border border-stone-800 bg-stone-900"
+                class="overflow-hidden border border-stone-800 bg-stone-900"
             >
                 <button
                     class="flex w-full items-center justify-between p-4 text-left text-lg font-bold"
@@ -240,17 +359,27 @@ const removeAbility = (kind: 'spells' | 'skills', ability: Ability) =>
                                             class="mt-1 text-xs text-amber-500"
                                         >
                                             Equipped:
-                                            <button
-                                                v-for="slot in item.slots"
-                                                :key="slot.id"
-                                                :disabled="
-                                                    !character.can_update
-                                                "
-                                                class="mr-2 underline"
-                                                @click="unequip(item, slot)"
+                                            <template
+                                                v-if="character.can_update"
                                             >
-                                                {{ slot.name }} ×
-                                            </button>
+                                                <button
+                                                    v-for="slot in item.slots"
+                                                    :key="slot.id"
+                                                    class="mr-2 underline"
+                                                    @click="unequip(item, slot)"
+                                                >
+                                                    {{ slot.name }} ×
+                                                </button>
+                                            </template>
+                                            <template v-else>
+                                                <span
+                                                    v-for="slot in item.slots"
+                                                    :key="slot.id"
+                                                    class="mr-2"
+                                                >
+                                                    {{ slot.name }}
+                                                </span>
+                                            </template>
                                         </p>
                                     </div>
                                     <div
@@ -334,8 +463,8 @@ const removeAbility = (kind: 'spells' | 'skills', ability: Ability) =>
                             :class="{ 'opacity-50': ability.is_used }"
                         >
                             <button
+                                v-if="character.can_update"
                                 class="w-full text-left"
-                                :disabled="!character.can_update"
                                 @click="toggleAbility('spells', ability)"
                             >
                                 <strong>{{ ability.name }}</strong>
@@ -343,6 +472,12 @@ const removeAbility = (kind: 'spells' | 'skills', ability: Ability) =>
                                     {{ ability.description }}
                                 </p>
                             </button>
+                            <div v-else>
+                                <strong>{{ ability.name }}</strong>
+                                <p class="text-sm text-stone-400">
+                                    {{ ability.description }}
+                                </p>
+                            </div>
                             <button
                                 v-if="character.can_update"
                                 class="mt-2 text-xs text-red-400"
@@ -388,8 +523,8 @@ const removeAbility = (kind: 'spells' | 'skills', ability: Ability) =>
                             :class="{ 'opacity-50': ability.is_used }"
                         >
                             <button
+                                v-if="character.can_update"
                                 class="w-full text-left"
-                                :disabled="!character.can_update"
                                 @click="toggleAbility('skills', ability)"
                             >
                                 <strong>{{ ability.name }}</strong>
@@ -397,6 +532,12 @@ const removeAbility = (kind: 'spells' | 'skills', ability: Ability) =>
                                     {{ ability.description }}
                                 </p>
                             </button>
+                            <div v-else>
+                                <strong>{{ ability.name }}</strong>
+                                <p class="text-sm text-stone-400">
+                                    {{ ability.description }}
+                                </p>
+                            </div>
                             <button
                                 v-if="character.can_update"
                                 class="mt-2 text-xs text-red-400"

@@ -26,7 +26,7 @@ class PersonalCharacterSheetController extends Controller
         $available = fn (string $model) => $model::query()->availableToUser($game->owner)->where('game_system_version_id', $game->game_system_version_id)->orderBy('name')->get();
         $trays = TrayDefinition::query()->availableToUser($game->owner)->where('game_system_version_id', $game->game_system_version_id)->orderBy('display_order')->get();
 
-        return Inertia::render('Characters/Show', ['game' => ['id' => $game->id, 'name' => $game->name], 'character' => [
+        return Inertia::render('Characters/Show', ['game' => ['id' => $game->id, 'name' => $game->name, 'is_spectator' => ! $isMember], 'character' => [
             'id' => $character->id, 'name' => $character->name, 'class_name' => $character->characterClass?->name, 'can_update' => $canUpdate,
             'stats' => $character->stats->sortBy('definition.display_order')->values()->map(fn ($stat) => ['id' => $stat->id, 'name' => $stat->definition->name, 'value' => $stat->value, 'max_value' => $stat->max_value]),
             'trays' => $trays->map(fn ($tray) => ['key' => $tray->key, 'name' => $tray->name, 'default_open' => $tray->default_open]),

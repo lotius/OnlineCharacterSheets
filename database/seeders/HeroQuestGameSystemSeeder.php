@@ -24,7 +24,7 @@ class HeroQuestGameSystemSeeder extends Seeder
 
         $version = GameSystemVersion::query()->updateOrCreate(
             ['game_system_id' => $system->id, 'version' => '1.0'],
-            ['name' => 'Core', 'is_current' => true, 'configuration' => []],
+            ['name' => null, 'is_current' => true, 'configuration' => []],
         );
 
         foreach ([

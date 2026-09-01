@@ -94,7 +94,7 @@ class CatalogController extends Controller
 
         return Inertia::render('Catalog/Index', [
             'mode' => $isAdmin ? 'admin' : 'personal',
-            'versions' => $versions->map(fn ($version) => ['id' => $version->id, 'name' => $version->gameSystem->name.' — '.($version->name ?? $version->version)]),
+            'versions' => $versions->map(fn ($version) => ['id' => $version->id, 'name' => $version->display_name]),
             'selectedVersionId' => $selected?->id,
             'groups' => $groups,
         ]);

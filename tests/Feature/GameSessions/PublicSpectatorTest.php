@@ -33,8 +33,8 @@ class PublicSpectatorTest extends TestCase
         $this->get('/')->assertOk()->assertInertia(fn ($page) => $page->missing('publicRooms'));
         $this->get('/rooms')->assertOk()->assertInertia(fn ($page) => $page
             ->component('PublicRooms/Index')
-            ->has('rooms', 1)
-            ->where('rooms.0.name', 'Open Table'));
+            ->has('rooms.data', 1)
+            ->where('rooms.data.0.name', 'Open Table'));
 
         $this->get("/games/{$game->id}")->assertOk()->assertInertia(fn ($page) => $page
             ->where('game.is_spectator', true)
@@ -49,6 +49,32 @@ class PublicSpectatorTest extends TestCase
             ->where('character.name', 'The Wizard')
             ->where('character.can_update', false)
             ->where('character.note', null));
+    }
+
+    public function test_public_room_directory_can_be_searched(): void
+    {
+        $owner = User::factory()->create();
+        app(CreateGameSession::class)->handle($owner, GameSystemVersion::query()->sole(), [
+            'name' => 'Open Table',
+            'visibility' => 'public_view',
+        ]);
+        app(CreateGameSession::class)->handle($owner, GameSystemVersion::query()->sole(), [
+            'name' => 'Hidden Crypt',
+            'visibility' => 'public_view',
+        ]);
+
+        $this->get('/rooms?search=open')->assertOk()->assertInertia(fn ($page) => $page
+            ->component('PublicRooms/Index')
+            ->where('filters.search', 'open')
+            ->has('rooms.data', 1)
+            ->where('rooms.data.0.name', 'Open Table'));
+    }
+
+    public function test_public_room_directory_can_explain_when_a_room_is_no_longer_public(): void
+    {
+        $this->get('/rooms?room_closed_name=Open%20Table')->assertOk()->assertInertia(fn ($page) => $page
+            ->component('PublicRooms/Index')
+            ->where('notice', '"Open Table" is no longer public.'));
     }
 
     public function test_guest_cannot_view_a_non_public_room_or_character(): void
