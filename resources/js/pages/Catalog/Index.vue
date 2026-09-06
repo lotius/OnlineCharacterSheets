@@ -8,6 +8,7 @@ type Definition = Record<string, unknown> & {
     key: string;
     name: string;
     description?: string | null;
+    icon?: string | null;
     configuration?: Record<string, unknown> | null;
     configuration_json?: string;
 };
@@ -32,11 +33,13 @@ const activeType = ref<DefinitionType>(
     (Object.keys(props.groups)[0] as DefinitionType | undefined) || 'items',
 );
 const editing = ref<Definition | null>(null);
+const importInputKey = ref(0);
 const form = useForm({
     name: '',
     key: '',
     description: '',
     icon: '',
+    icon_upload: null as File | null,
     display_order: 0,
     data_type: 'integer',
     default_value: null as number | string | boolean | null,
@@ -53,6 +56,7 @@ const form = useForm({
     category: '',
     configuration_json: '',
 });
+const importForm = useForm({ catalog_file: null as File | null });
 
 const base = computed(() =>
     props.mode === 'admin' ? '/admin/catalog' : '/library',
@@ -71,6 +75,13 @@ const canDescribe = computed(() =>
 const canOrder = computed(() =>
     ['classes', 'stats', 'slots', 'trays'].includes(activeType.value),
 );
+const canHaveIcon = computed(() =>
+    ['items', 'spells', 'skills', 'stats', 'slots', 'trays'].includes(
+        activeType.value,
+    ),
+);
+const iconUrl = (icon?: string | null) =>
+    icon ? (icon.startsWith('http') ? icon : `/storage/${icon}`) : null;
 
 const safeJson = (value: string, fallback: unknown = {}) => {
     if (!value.trim()) return fallback;
@@ -143,12 +154,22 @@ const save = () => {
     form.configuration_json = configurationForSave();
     const url = `${base.value}/${props.selectedVersionId}/${activeType.value}`;
 
+    form.transform((data) =>
+        editing.value ? { ...data, _method: 'patch' } : data,
+    );
+
     if (editing.value)
-        form.patch(`${url}/${editing.value.id}`, {
+        form.post(`${url}/${editing.value.id}`, {
+            forceFormData: true,
             preserveScroll: true,
             onSuccess: reset,
         });
-    else form.post(url, { preserveScroll: true, onSuccess: reset });
+    else
+        form.post(url, {
+            forceFormData: true,
+            preserveScroll: true,
+            onSuccess: reset,
+        });
 };
 
 const remove = (definition: Definition) => {
@@ -161,6 +182,19 @@ const remove = (definition: Definition) => {
 const chooseType = (type: string) => {
     activeType.value = type as DefinitionType;
     reset();
+};
+const importCatalog = () => {
+    importForm.post(
+        `${base.value}/${props.selectedVersionId}/${activeType.value}/import`,
+        {
+            forceFormData: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                importForm.reset();
+                importInputKey.value++;
+            },
+        },
+    );
 };
 </script>
 
@@ -253,17 +287,25 @@ const chooseType = (type: string) => {
                             :key="definition.id"
                             class="flex items-start justify-between gap-4 bg-stone-950 p-4"
                         >
-                            <div class="min-w-0">
-                                <strong>{{ definition.name }}</strong>
-                                <p class="font-mono text-xs text-amber-500">
-                                    {{ definition.key }}
-                                </p>
-                                <p
-                                    v-if="definition.description"
-                                    class="mt-1 text-sm text-stone-400"
-                                >
-                                    {{ definition.description }}
-                                </p>
+                            <div class="flex min-w-0 items-start gap-3">
+                                <img
+                                    v-if="iconUrl(definition.icon)"
+                                    :src="iconUrl(definition.icon) || undefined"
+                                    :alt="`${definition.name} icon`"
+                                    class="size-10 shrink-0 object-contain"
+                                />
+                                <div class="min-w-0">
+                                    <strong>{{ definition.name }}</strong>
+                                    <p class="font-mono text-xs text-amber-500">
+                                        {{ definition.key }}
+                                    </p>
+                                    <p
+                                        v-if="definition.description"
+                                        class="mt-1 text-sm text-stone-400"
+                                    >
+                                        {{ definition.description }}
+                                    </p>
+                                </div>
                             </div>
                             <div class="flex shrink-0 gap-2">
                                 <button
@@ -288,202 +330,276 @@ const chooseType = (type: string) => {
                     </div>
                 </section>
 
-                <form
-                    class="h-fit space-y-4 border border-stone-800 bg-stone-900 p-5"
-                    @submit.prevent="save"
-                >
-                    <h2 class="hq-rule-heading text-xl font-bold">
-                        {{ editing ? 'Edit' : 'Create' }}
-                        {{ activeGroup?.label }}
-                    </h2>
-
-                    <label class="block text-sm text-stone-300"
-                        >Name<input
-                            v-model="form.name"
-                            required
-                            class="mt-1 w-full border border-stone-700 bg-stone-950 p-3"
-                    /></label>
-                    <label class="block text-sm text-stone-300"
-                        >Key<input
-                            v-model="form.key"
-                            placeholder="generated_from_name"
-                            class="mt-1 w-full border border-stone-700 bg-stone-950 p-3 font-mono"
-                    /></label>
-                    <label
-                        v-if="canDescribe"
-                        class="block text-sm text-stone-300"
-                        >Description<textarea
-                            v-model="form.description"
-                            rows="3"
-                            class="mt-1 w-full border border-stone-700 bg-stone-950 p-3"
-                        />
-                    </label>
-
-                    <div v-if="canOrder" class="grid grid-cols-2 gap-3">
-                        <label class="block text-sm text-stone-300"
-                            >Display order<input
-                                v-model.number="form.display_order"
-                                type="number"
-                                min="0"
-                                class="mt-1 w-full border border-stone-700 bg-stone-950 p-3"
-                        /></label>
-                        <label class="block text-sm text-stone-300"
-                            >Icon<input
-                                v-model="form.icon"
-                                class="mt-1 w-full border border-stone-700 bg-stone-950 p-3"
-                        /></label>
-                    </div>
-
-                    <section v-if="activeType === 'stats'" class="space-y-3">
-                        <label class="block text-sm text-stone-300"
-                            >Data type<select
-                                v-model="form.data_type"
-                                class="mt-1 w-full border border-stone-700 bg-stone-950 p-3"
-                            >
-                                <option>integer</option>
-                                <option>decimal</option>
-                                <option>text</option>
-                                <option>boolean</option>
-                            </select></label
+                <div class="space-y-4">
+                    <form
+                        class="space-y-3 border border-stone-800 bg-stone-900 p-5"
+                        @submit.prevent="importCatalog"
+                    >
+                        <h2 class="hq-rule-heading text-lg font-bold">
+                            Bulk import {{ activeGroup?.label }}
+                        </h2>
+                        <p class="text-sm text-stone-400">
+                            Upload a JSON array. Matching keys are updated and
+                            new keys are created for this game-system version.
+                        </p>
+                        <a
+                            :href="`${base}/${selectedVersionId}/${activeType}/export`"
+                            class="block border border-stone-700 px-4 py-2 text-center font-semibold text-stone-300 transition hover:border-amber-600 hover:text-amber-400"
                         >
-                        <div class="grid grid-cols-2 gap-3">
+                            Export JSON with field guide
+                        </a>
+                        <input
+                            :key="importInputKey"
+                            type="file"
+                            accept="application/json,.json"
+                            required
+                            class="block w-full border border-stone-700 bg-stone-950 p-3 file:mr-3 file:border-0 file:bg-stone-700 file:px-3 file:py-2 file:font-semibold file:text-stone-100"
+                            @change="
+                                importForm.catalog_file =
+                                    ($event.target as HTMLInputElement)
+                                        .files?.[0] || null
+                            "
+                        />
+                        <p
+                            v-if="importForm.errors.catalog_file"
+                            class="text-sm text-red-400"
+                        >
+                            {{ importForm.errors.catalog_file }}
+                        </p>
+                        <button
+                            :disabled="
+                                importForm.processing ||
+                                !importForm.catalog_file
+                            "
+                            class="w-full border border-amber-700 px-4 py-2 font-bold text-amber-400 transition hover:bg-amber-700 hover:text-stone-950 disabled:opacity-40"
+                        >
+                            Import JSON
+                        </button>
+                    </form>
+
+                    <form
+                        class="space-y-4 border border-stone-800 bg-stone-900 p-5"
+                        @submit.prevent="save"
+                    >
+                        <h2 class="hq-rule-heading text-xl font-bold">
+                            {{ editing ? 'Edit' : 'Create' }}
+                            {{ activeGroup?.label }}
+                        </h2>
+
+                        <label class="block text-sm text-stone-300"
+                            >Name<input
+                                v-model="form.name"
+                                required
+                                class="mt-1 w-full border border-stone-700 bg-stone-950 p-3"
+                        /></label>
+                        <label class="block text-sm text-stone-300"
+                            >Key<input
+                                v-model="form.key"
+                                placeholder="generated_from_name"
+                                class="mt-1 w-full border border-stone-700 bg-stone-950 p-3 font-mono"
+                        /></label>
+                        <label
+                            v-if="canDescribe"
+                            class="block text-sm text-stone-300"
+                            >Description<textarea
+                                v-model="form.description"
+                                rows="3"
+                                class="mt-1 w-full border border-stone-700 bg-stone-950 p-3"
+                            />
+                        </label>
+
+                        <div v-if="canOrder">
                             <label class="block text-sm text-stone-300"
-                                >Default<input
-                                    v-model="form.default_value"
-                                    class="mt-1 w-full border border-stone-700 bg-stone-950 p-3"
-                            /></label>
-                            <label class="block text-sm text-stone-300"
-                                >Default max<input
-                                    v-model.number="form.default_max_value"
+                                >Display order<input
+                                    v-model.number="form.display_order"
                                     type="number"
-                                    class="mt-1 w-full border border-stone-700 bg-stone-950 p-3"
-                            /></label>
-                            <label class="block text-sm text-stone-300"
-                                >Minimum<input
-                                    v-model.number="form.minimum_value"
-                                    type="number"
-                                    class="mt-1 w-full border border-stone-700 bg-stone-950 p-3"
-                            /></label>
-                            <label class="block text-sm text-stone-300"
-                                >Maximum<input
-                                    v-model.number="form.maximum_value"
-                                    type="number"
+                                    min="0"
                                     class="mt-1 w-full border border-stone-700 bg-stone-950 p-3"
                             /></label>
                         </div>
+
                         <label
-                            class="flex items-center gap-2 text-sm text-stone-300"
-                            ><input v-model="form.is_public" type="checkbox" />
-                            Visible to spectators</label
+                            v-if="canHaveIcon"
+                            class="block text-sm text-stone-300"
                         >
-                    </section>
-
-                    <label
-                        v-if="activeType === 'slots'"
-                        class="block text-sm text-stone-300"
-                        >Capacity<input
-                            v-model.number="form.capacity"
-                            type="number"
-                            min="1"
-                            class="mt-1 w-full border border-stone-700 bg-stone-950 p-3"
-                    /></label>
-
-                    <section v-if="activeType === 'trays'" class="space-y-3">
-                        <label
-                            class="flex items-center gap-2 text-sm text-stone-300"
-                            ><input
-                                v-model="form.is_collapsible"
-                                type="checkbox"
+                            Icon image
+                            <input
+                                type="file"
+                                accept="image/png,image/jpeg,image/webp,image/gif"
+                                class="mt-1 block w-full border border-stone-700 bg-stone-950 p-3 file:mr-3 file:border-0 file:bg-amber-600 file:px-3 file:py-2 file:font-bold file:text-stone-950"
+                                @change="
+                                    form.icon_upload =
+                                        ($event.target as HTMLInputElement)
+                                            .files?.[0] || null
+                                "
                             />
-                            Collapsible</label
+                            <span class="mt-1 block text-xs text-stone-500">
+                                PNG, JPEG, WebP, or GIF. Maximum 2 MB.
+                            </span>
+                        </label>
+
+                        <section
+                            v-if="activeType === 'stats'"
+                            class="space-y-3"
                         >
+                            <label class="block text-sm text-stone-300"
+                                >Data type<select
+                                    v-model="form.data_type"
+                                    class="mt-1 w-full border border-stone-700 bg-stone-950 p-3"
+                                >
+                                    <option>integer</option>
+                                    <option>decimal</option>
+                                    <option>text</option>
+                                    <option>boolean</option>
+                                </select></label
+                            >
+                            <div class="grid grid-cols-2 gap-3">
+                                <label class="block text-sm text-stone-300"
+                                    >Default<input
+                                        v-model="form.default_value"
+                                        class="mt-1 w-full border border-stone-700 bg-stone-950 p-3"
+                                /></label>
+                                <label class="block text-sm text-stone-300"
+                                    >Default max<input
+                                        v-model.number="form.default_max_value"
+                                        type="number"
+                                        class="mt-1 w-full border border-stone-700 bg-stone-950 p-3"
+                                /></label>
+                                <label class="block text-sm text-stone-300"
+                                    >Minimum<input
+                                        v-model.number="form.minimum_value"
+                                        type="number"
+                                        class="mt-1 w-full border border-stone-700 bg-stone-950 p-3"
+                                /></label>
+                                <label class="block text-sm text-stone-300"
+                                    >Maximum<input
+                                        v-model.number="form.maximum_value"
+                                        type="number"
+                                        class="mt-1 w-full border border-stone-700 bg-stone-950 p-3"
+                                /></label>
+                            </div>
+                            <label
+                                class="flex items-center gap-2 text-sm text-stone-300"
+                                ><input
+                                    v-model="form.is_public"
+                                    type="checkbox"
+                                />
+                                Visible to spectators</label
+                            >
+                        </section>
+
                         <label
-                            class="flex items-center gap-2 text-sm text-stone-300"
-                            ><input
-                                v-model="form.default_open"
-                                type="checkbox"
-                            />
-                            Open by default</label
-                        >
-                    </section>
-
-                    <label
-                        v-if="activeType === 'classes'"
-                        class="block text-sm text-stone-300"
-                        >Default stats JSON<textarea
-                            v-model="form.default_stats_json"
-                            rows="4"
-                            placeholder='{"body": 8, "mind": 2}'
-                            class="mt-1 w-full border border-stone-700 bg-stone-950 p-3 font-mono text-xs"
-                        />
-                    </label>
-
-                    <section
-                        v-if="
-                            ['items', 'spells', 'skills'].includes(activeType)
-                        "
-                        class="space-y-3"
-                    >
-                        <label class="block text-sm text-stone-300"
-                            >Category<input
-                                v-model="form.category"
-                                placeholder="weapon, armor, air, fire..."
+                            v-if="activeType === 'slots'"
+                            class="block text-sm text-stone-300"
+                            >Capacity<input
+                                v-model.number="form.capacity"
+                                type="number"
+                                min="1"
                                 class="mt-1 w-full border border-stone-700 bg-stone-950 p-3"
                         /></label>
+
+                        <section
+                            v-if="activeType === 'trays'"
+                            class="space-y-3"
+                        >
+                            <label
+                                class="flex items-center gap-2 text-sm text-stone-300"
+                                ><input
+                                    v-model="form.is_collapsible"
+                                    type="checkbox"
+                                />
+                                Collapsible</label
+                            >
+                            <label
+                                class="flex items-center gap-2 text-sm text-stone-300"
+                                ><input
+                                    v-model="form.default_open"
+                                    type="checkbox"
+                                />
+                                Open by default</label
+                            >
+                        </section>
+
                         <label
-                            v-if="activeType === 'items'"
+                            v-if="activeType === 'classes'"
                             class="block text-sm text-stone-300"
-                            >Required slots JSON<textarea
-                                v-model="form.required_slots_json"
-                                rows="3"
-                                placeholder='["left_hand", "right_hand"]'
+                            >Default stats JSON<textarea
+                                v-model="form.default_stats_json"
+                                rows="4"
+                                placeholder='{"body": 8, "mind": 2}'
                                 class="mt-1 w-full border border-stone-700 bg-stone-950 p-3 font-mono text-xs"
                             />
                         </label>
-                        <label
-                            v-if="activeType !== 'items'"
-                            class="block text-sm text-stone-300"
-                            >Charges<input
-                                v-model.number="form.charges"
-                                type="number"
-                                min="0"
-                                class="mt-1 w-full border border-stone-700 bg-stone-950 p-3"
-                        /></label>
-                    </section>
 
-                    <label class="block text-sm text-stone-300"
-                        >Extra configuration JSON<textarea
-                            v-model="form.configuration_json"
-                            rows="5"
-                            placeholder="{}"
-                            class="mt-1 w-full border border-stone-700 bg-stone-950 p-3 font-mono text-xs"
-                        />
-                    </label>
+                        <section
+                            v-if="
+                                ['items', 'spells', 'skills'].includes(
+                                    activeType,
+                                )
+                            "
+                            class="space-y-3"
+                        >
+                            <label class="block text-sm text-stone-300"
+                                >Category<input
+                                    v-model="form.category"
+                                    placeholder="weapon, armor, air, fire..."
+                                    class="mt-1 w-full border border-stone-700 bg-stone-950 p-3"
+                            /></label>
+                            <label
+                                v-if="activeType === 'items'"
+                                class="block text-sm text-stone-300"
+                                >Required slots JSON<textarea
+                                    v-model="form.required_slots_json"
+                                    rows="3"
+                                    placeholder='["left_hand", "right_hand"]'
+                                    class="mt-1 w-full border border-stone-700 bg-stone-950 p-3 font-mono text-xs"
+                                />
+                            </label>
+                            <label
+                                v-if="activeType !== 'items'"
+                                class="block text-sm text-stone-300"
+                                >Charges<input
+                                    v-model.number="form.charges"
+                                    type="number"
+                                    min="0"
+                                    class="mt-1 w-full border border-stone-700 bg-stone-950 p-3"
+                            /></label>
+                        </section>
 
-                    <div
-                        v-if="Object.keys(form.errors).length"
-                        class="bg-red-950 p-3 text-sm text-red-300"
-                    >
-                        <p v-for="error in form.errors" :key="error">
-                            {{ error }}
-                        </p>
-                    </div>
-                    <div class="flex gap-2">
-                        <button
-                            :disabled="form.processing"
-                            class="flex-1 bg-amber-600 p-3 font-bold text-stone-950 transition hover:bg-amber-500 active:scale-95 disabled:opacity-50"
+                        <label class="block text-sm text-stone-300"
+                            >Extra configuration JSON<textarea
+                                v-model="form.configuration_json"
+                                rows="5"
+                                placeholder="{}"
+                                class="mt-1 w-full border border-stone-700 bg-stone-950 p-3 font-mono text-xs"
+                            />
+                        </label>
+
+                        <div
+                            v-if="Object.keys(form.errors).length"
+                            class="bg-red-950 p-3 text-sm text-red-300"
                         >
-                            Save element</button
-                        ><button
-                            v-if="editing"
-                            type="button"
-                            class="border border-stone-700 px-4 text-stone-300 hover:border-amber-600 hover:text-amber-400"
-                            @click="reset"
-                        >
-                            Cancel
-                        </button>
-                    </div>
-                </form>
+                            <p v-for="error in form.errors" :key="error">
+                                {{ error }}
+                            </p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button
+                                :disabled="form.processing"
+                                class="flex-1 bg-amber-600 p-3 font-bold text-stone-950 transition hover:bg-amber-500 active:scale-95 disabled:opacity-50"
+                            >
+                                Save element</button
+                            ><button
+                                v-if="editing"
+                                type="button"
+                                class="border border-stone-700 px-4 text-stone-300 hover:border-amber-600 hover:text-amber-400"
+                                @click="reset"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
             <p v-else class="mt-8 text-stone-400">
                 An administrator must create a game system version first.

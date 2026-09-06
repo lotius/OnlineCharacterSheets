@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -20,7 +21,12 @@ class RegisteredUserController extends Controller
 
     public function store(RegisterRequest $request): RedirectResponse
     {
-        $user = User::query()->create($request->validated());
+        $user = DB::transaction(function () use ($request): User {
+            $attributes = $request->validated();
+            $attributes['is_admin'] = ! User::query()->lockForUpdate()->exists();
+
+            return User::query()->create($attributes);
+        });
         event(new Registered($user));
         Auth::login($user);
         $request->session()->regenerate();

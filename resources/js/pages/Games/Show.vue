@@ -3,7 +3,7 @@ import AppHeader from '@/components/AppHeader.vue';
 import { echo } from '@/echo';
 import { sendRoomViewerHeartbeat } from '@/lib/roomViewers';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
 type Member = { id: number; name: string; role: string; status: string };
 type Option = { id: number; name: string };
@@ -18,13 +18,16 @@ type Item = {
     id: number;
     name: string;
     description: string | null;
+    icon: string | null;
     quantity: number;
+    is_active: boolean;
     slots: string[];
 };
 type Ability = {
     id: number;
     name: string;
     description: string | null;
+    icon: string | null;
     is_used: boolean;
 };
 type Character = {
@@ -32,6 +35,7 @@ type Character = {
     id: number;
     name: string;
     class_name: string | null;
+    gold: number;
     assigned_user_id: number | null;
     assigned_user_name: string | null;
     can_update: boolean;
@@ -74,22 +78,41 @@ const changedStats = ref<Record<string, boolean>>({});
 let stopConnectionListener: (() => void) | null = null;
 let subscribedChannelName: string | null = null;
 let viewerHeartbeatInterval: number | null = null;
-const openCharacters = ref<Record<number, boolean>>({});
-const openSections = ref<Record<string, boolean>>({});
-const showRoomTools = ref(false);
+const sheetSections = [
+    {
+        key: 'inventory',
+        name: 'Inventory',
+    },
+    {
+        key: 'abilities',
+        name: 'Spells / Skills',
+    },
+] as const;
+const openSections = ref<Record<string, boolean>>(
+    Object.fromEntries(
+        props.game.characters.flatMap((character) =>
+            sheetSections.map((section) => [
+                `${character.id}:${section.key}`,
+                false,
+            ]),
+        ),
+    ),
+);
+const showRoomSettings = ref(false);
+const showInvitePlayers = ref(false);
+const joinCodeCopied = ref(false);
+const goldAdjustmentCharacter = ref<Character | null>(null);
+const goldAdjustmentOperation = ref<'add' | 'subtract'>('add');
+const goldAdjustmentAmount = ref(1);
 const viewerCount = ref(props.game.viewer_count);
+const partyGold = computed(() =>
+    props.game.characters.reduce(
+        (total, character) => total + character.gold,
+        0,
+    ),
+);
 const sectionKey = (characterId: number, trayKey: string) =>
     `${characterId}:${trayKey}`;
-const toggleCharacter = (character: Character) => {
-    openCharacters.value[character.id] = !openCharacters.value[character.id];
-    if (openCharacters.value[character.id]) {
-        for (const tray of character.trays) {
-            const key = sectionKey(character.id, tray.key);
-            if (!(key in openSections.value))
-                openSections.value[key] = tray.default_open;
-        }
-    }
-};
 const characterForm = useForm({ name: '', character_class_definition_id: '' });
 const roomSettingsForm = useForm({
     name: props.game.name,
@@ -145,10 +168,49 @@ const changeStat = (character: Character, stat: Stat, change: number) =>
         { value: Number(stat.value) + change },
         { preserveScroll: true },
     );
+const updateGold = (character: Character, gold: number) =>
+    router.patch(
+        `/characters/${character.id}/gold`,
+        { gold: Math.max(0, gold) },
+        { preserveScroll: true },
+    );
+const openGoldAdjustment = (
+    character: Character,
+    operation: 'add' | 'subtract',
+) => {
+    goldAdjustmentCharacter.value = character;
+    goldAdjustmentOperation.value = operation;
+    goldAdjustmentAmount.value = 1;
+};
+const applyGoldAdjustment = () => {
+    if (!goldAdjustmentCharacter.value) return;
+
+    const character = goldAdjustmentCharacter.value;
+    const change = Math.max(1, Math.floor(goldAdjustmentAmount.value));
+    updateGold(
+        character,
+        goldAdjustmentOperation.value === 'subtract'
+            ? Math.max(0, character.gold - change)
+            : character.gold + change,
+    );
+    goldAdjustmentCharacter.value = null;
+};
+const toggleActiveItem = (character: Character, item: Item) =>
+    router.patch(
+        `/characters/${character.id}/items/${item.id}/active`,
+        { is_active: !item.is_active },
+        { preserveScroll: true },
+    );
 const updateRoomSettings = () =>
     roomSettingsForm.patch(`/games/${props.game.id}`, {
         preserveScroll: true,
+        onSuccess: () => (showRoomSettings.value = false),
     });
+const copyJoinCode = async () => {
+    await navigator.clipboard.writeText(props.game.join_code);
+    joinCodeCopied.value = true;
+    window.setTimeout(() => (joinCodeCopied.value = false), 2000);
+};
 const sendViewerHeartbeat = async () => {
     const result = await sendRoomViewerHeartbeat(props.game.id);
     if (result) viewerCount.value = result.viewer_count;
@@ -251,42 +313,45 @@ onUnmounted(() => {
                         <h1 class="hq-rule-heading text-4xl font-black">
                             {{ game.name }}
                         </h1>
-                        <button
-                            v-if="
-                                game.can_manage_members ||
-                                game.can_manage_settings
-                            "
-                            type="button"
-                            class="size-10 border border-amber-700/50 bg-stone-900 text-xl text-amber-400 transition hover:border-amber-500 hover:bg-amber-700 hover:text-stone-950 active:scale-95"
-                            :class="{
-                                'border-amber-500 bg-amber-700 text-stone-950':
-                                    showRoomTools,
-                            }"
-                            aria-label="Room tools"
-                            title="Room tools"
-                            @click="showRoomTools = !showRoomTools"
-                        >
-                            ⚙
-                        </button>
+                        <div class="flex gap-2">
+                            <button
+                                v-if="game.can_manage_settings"
+                                type="button"
+                                class="flex size-10 items-center justify-center border border-amber-700/50 bg-stone-900 text-xl text-amber-400 transition hover:border-amber-500 hover:bg-amber-700 hover:text-stone-950 active:scale-95"
+                                aria-label="Room settings"
+                                title="Room settings"
+                                @click="showRoomSettings = true"
+                            >
+                                ⚙
+                            </button>
+                            <button
+                                v-if="game.can_manage_members"
+                                type="button"
+                                class="flex size-10 items-center justify-center border border-amber-700/50 bg-stone-900 text-amber-400 transition hover:border-amber-500 hover:bg-amber-700 hover:text-stone-950 active:scale-95"
+                                aria-label="Invite players"
+                                title="Invite players"
+                                @click="showInvitePlayers = true"
+                            >
+                                <svg
+                                    aria-hidden="true"
+                                    viewBox="0 0 24 24"
+                                    class="size-5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path d="M15 19a6 6 0 0 0-12 0" />
+                                    <circle cx="9" cy="7" r="4" />
+                                    <path d="M19 8v6M16 11h6" />
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                     <p class="mt-2 text-stone-400">
                         {{ game.visibility }}
                         <span class="mx-2 text-stone-600">|</span>
                         {{ viewerCount }}
                         {{ viewerCount === 1 ? 'watcher' : 'watchers' }}
-                    </p>
-                </div>
-                <div
-                    v-if="game.can_manage_members"
-                    class="border border-amber-700/40 bg-stone-900 px-6 py-4 text-center"
-                >
-                    <p class="text-xs tracking-widest text-stone-400 uppercase">
-                        Join code
-                    </p>
-                    <p
-                        class="mt-1 font-mono text-2xl font-bold tracking-[0.2em] text-amber-400"
-                    >
-                        {{ game.join_code }}
                     </p>
                 </div>
                 <div
@@ -306,103 +371,228 @@ onUnmounted(() => {
                 </div>
             </header>
 
-            <section
-                v-if="
-                    showRoomTools &&
-                    (game.can_manage_members || game.can_manage_settings)
-                "
-                class="mt-6 border border-amber-800/40 bg-stone-900 p-5 shadow-2xl"
+            <div
+                v-if="goldAdjustmentCharacter"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/80 p-4"
+                @click.self="goldAdjustmentCharacter = null"
             >
-                <div class="grid gap-5 lg:grid-cols-2">
-                    <form
-                        v-if="game.can_manage_settings"
-                        class="space-y-4"
-                        @submit.prevent="updateRoomSettings"
+                <form
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="room-gold-adjustment-title"
+                    class="w-full max-w-sm border border-amber-800/50 bg-stone-900 p-6 shadow-2xl"
+                    @submit.prevent="applyGoldAdjustment"
+                >
+                    <div class="flex items-center justify-between gap-4">
+                        <h2
+                            id="room-gold-adjustment-title"
+                            class="hq-rule-heading text-xl font-bold"
+                        >
+                            {{
+                                goldAdjustmentOperation === 'add'
+                                    ? 'Add Gold'
+                                    : 'Subtract Gold'
+                            }}
+                        </h2>
+                        <button
+                            type="button"
+                            class="text-2xl text-stone-400 hover:text-stone-100"
+                            aria-label="Close gold adjustment"
+                            @click="goldAdjustmentCharacter = null"
+                        >
+                            ×
+                        </button>
+                    </div>
+                    <p class="mt-3 text-sm text-stone-400">
+                        {{ goldAdjustmentCharacter.name }} currently has
+                        {{ goldAdjustmentCharacter.gold }} gold.
+                    </p>
+                    <label class="mt-4 block text-sm text-stone-300">
+                        Amount
+                        <input
+                            v-model.number="goldAdjustmentAmount"
+                            type="number"
+                            min="1"
+                            :max="
+                                goldAdjustmentOperation === 'subtract'
+                                    ? goldAdjustmentCharacter.gold
+                                    : undefined
+                            "
+                            required
+                            autofocus
+                            class="mt-1 w-full border border-stone-700 bg-stone-950 p-3 text-xl text-amber-400"
+                        />
+                    </label>
+                    <button
+                        class="mt-5 w-full bg-amber-600 p-3 font-bold text-stone-950 hover:bg-amber-500"
                     >
-                        <h2 class="hq-rule-heading text-xl font-bold">
+                        {{
+                            goldAdjustmentOperation === 'add'
+                                ? 'Add Gold'
+                                : 'Subtract Gold'
+                        }}
+                    </button>
+                </form>
+            </div>
+
+            <div
+                v-if="showRoomSettings && game.can_manage_settings"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/80 p-4"
+                @click.self="showRoomSettings = false"
+            >
+                <form
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="room-settings-title"
+                    class="w-full max-w-lg space-y-4 border border-amber-800/50 bg-stone-900 p-6 text-stone-100 shadow-2xl"
+                    @submit.prevent="updateRoomSettings"
+                >
+                    <div class="flex items-center justify-between gap-4">
+                        <h2
+                            id="room-settings-title"
+                            class="hq-rule-heading text-xl font-bold"
+                        >
                             Room settings
                         </h2>
-                        <label class="block">
-                            <span class="text-sm text-stone-400">Name</span>
-                            <input
-                                v-model="roomSettingsForm.name"
-                                required
-                                class="mt-1 w-full border border-stone-700 bg-stone-950 px-4 py-3"
-                            />
-                            <span
-                                v-if="roomSettingsForm.errors.name"
-                                class="text-sm text-red-400"
-                                >{{ roomSettingsForm.errors.name }}</span
-                            >
-                        </label>
-                        <label class="block">
-                            <span class="text-sm text-stone-400"
-                                >Visibility</span
-                            >
-                            <select
-                                v-model="roomSettingsForm.visibility"
-                                class="mt-1 w-full border border-stone-700 bg-stone-950 px-4 py-3"
-                            >
-                                <option value="private">Private</option>
-                                <option value="invite_only">
-                                    Join requests
-                                </option>
-                                <option value="public_view">
-                                    Public spectator
-                                </option>
-                            </select>
-                        </label>
                         <button
-                            :disabled="roomSettingsForm.processing"
-                            class="bg-amber-600 px-4 py-2 font-bold text-stone-950 transition hover:bg-amber-500 active:scale-95 disabled:opacity-50"
+                            type="button"
+                            class="text-2xl text-stone-400 hover:text-stone-100"
+                            aria-label="Close room settings"
+                            @click="showRoomSettings = false"
                         >
-                            Save settings
+                            ×
                         </button>
-                    </form>
-
-                    <form
-                        v-if="game.can_manage_members"
-                        class="space-y-4"
-                        @submit.prevent="createCharacter"
-                    >
-                        <h2 class="hq-rule-heading text-xl font-bold">
-                            Add character
-                        </h2>
+                    </div>
+                    <label class="block">
+                        <span class="text-sm text-stone-400">Name</span>
                         <input
-                            v-model="characterForm.name"
+                            v-model="roomSettingsForm.name"
                             required
-                            placeholder="Character name"
-                            class="w-full border border-stone-700 bg-stone-950 px-4 py-3"
+                            class="mt-1 w-full border border-stone-700 bg-stone-950 px-4 py-3"
                         />
-                        <select
-                            v-model="
-                                characterForm.character_class_definition_id
-                            "
-                            class="w-full border border-stone-700 bg-stone-950 px-4 py-3"
+                        <span
+                            v-if="roomSettingsForm.errors.name"
+                            class="text-sm text-red-400"
+                            >{{ roomSettingsForm.errors.name }}</span
                         >
-                            <option value="">No class</option>
-                            <option
-                                v-for="option in game.classes"
-                                :key="option.id"
-                                :value="option.id"
-                            >
-                                {{ option.name }}
+                    </label>
+                    <label class="block">
+                        <span class="text-sm text-stone-400">Visibility</span>
+                        <select
+                            v-model="roomSettingsForm.visibility"
+                            class="mt-1 w-full border border-stone-700 bg-stone-950 px-4 py-3"
+                        >
+                            <option value="private">Private</option>
+                            <option value="invite_only">Join requests</option>
+                            <option value="public_view">
+                                Public spectator
                             </option>
                         </select>
-                        <button
-                            class="bg-amber-600 px-5 py-2 font-bold text-stone-950 transition hover:bg-amber-500 active:scale-95"
+                    </label>
+                    <button
+                        :disabled="roomSettingsForm.processing"
+                        class="bg-amber-600 px-4 py-2 font-bold text-stone-950 transition hover:bg-amber-500 active:scale-95 disabled:opacity-50"
+                    >
+                        Save settings
+                    </button>
+                </form>
+            </div>
+            <div
+                v-if="showInvitePlayers && game.can_manage_members"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/80 p-4"
+                @click.self="showInvitePlayers = false"
+            >
+                <section
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="invite-players-title"
+                    class="w-full max-w-lg border border-amber-800/50 bg-stone-900 p-6 text-stone-100 shadow-2xl"
+                >
+                    <div class="flex items-center justify-between gap-4">
+                        <h2
+                            id="invite-players-title"
+                            class="hq-rule-heading text-xl font-bold"
                         >
-                            Create character
+                            Invite players
+                        </h2>
+                        <button
+                            type="button"
+                            class="text-2xl text-stone-400 hover:text-stone-100"
+                            aria-label="Close player invitations"
+                            @click="showInvitePlayers = false"
+                        >
+                            ×
                         </button>
-                    </form>
-                </div>
-            </section>
+                    </div>
+                    <p class="mt-4 text-stone-400">
+                        Share this join code with the players you want to
+                        invite.
+                    </p>
+                    <div
+                        class="mt-5 flex flex-wrap items-center justify-between gap-4 border border-amber-700/40 bg-stone-950 p-4"
+                    >
+                        <span
+                            class="font-mono text-2xl font-bold tracking-[0.2em] text-amber-400"
+                            >{{ game.join_code }}</span
+                        >
+                        <button
+                            type="button"
+                            class="bg-amber-600 px-4 py-2 font-bold text-stone-950 transition hover:bg-amber-500 active:scale-95"
+                            @click="copyJoinCode"
+                        >
+                            {{ joinCodeCopied ? 'Copied!' : 'Copy code' }}
+                        </button>
+                    </div>
+                </section>
+            </div>
 
             <section class="mt-8">
                 <div class="flex items-center justify-between">
                     <h2 class="hq-rule-heading text-2xl font-bold">
                         Characters
                     </h2>
+                </div>
+                <form
+                    v-if="game.can_manage_members"
+                    class="mt-5 grid gap-3 border border-stone-800 bg-stone-900 p-4 sm:grid-cols-[1fr_1fr_auto]"
+                    @submit.prevent="createCharacter"
+                >
+                    <input
+                        v-model="characterForm.name"
+                        required
+                        placeholder="Character name"
+                        class="border border-stone-700 bg-stone-950 px-4 py-3"
+                    />
+                    <select
+                        v-model="characterForm.character_class_definition_id"
+                        class="border border-stone-700 bg-stone-950 px-4 py-3"
+                    >
+                        <option value="">No class</option>
+                        <option
+                            v-for="option in game.classes"
+                            :key="option.id"
+                            :value="option.id"
+                        >
+                            {{ option.name }}
+                        </option>
+                    </select>
+                    <button
+                        class="bg-amber-600 px-5 py-2 font-bold text-stone-950 transition hover:bg-amber-500 active:scale-95"
+                    >
+                        Create character
+                    </button>
+                </form>
+                <div
+                    class="mt-5 border border-amber-700/40 bg-stone-900 px-5 py-4"
+                >
+                    <p
+                        class="text-xs font-semibold tracking-widest text-stone-400 uppercase"
+                    >
+                        Party Gold
+                    </p>
+                    <p class="mt-1 text-3xl font-black text-amber-400">
+                        {{ partyGold }}
+                    </p>
                 </div>
                 <div class="mt-5 grid gap-4 lg:grid-cols-2">
                     <article
@@ -497,80 +687,232 @@ onUnmounted(() => {
                                     </button>
                                 </div>
                             </div>
+                            <div class="bg-stone-950 p-4 text-center">
+                                <p
+                                    class="text-xs tracking-wider text-stone-400 uppercase"
+                                >
+                                    Gold
+                                </p>
+                                <div
+                                    class="mt-2 flex items-center justify-center gap-3"
+                                >
+                                    <button
+                                        v-if="character.can_update"
+                                        :disabled="character.gold <= 0"
+                                        class="size-8 bg-stone-800 font-bold transition duration-150 enabled:hover:bg-amber-700 enabled:hover:text-stone-950 enabled:active:scale-90 enabled:active:bg-amber-500 disabled:opacity-30"
+                                        @click="
+                                            openGoldAdjustment(
+                                                character,
+                                                'subtract',
+                                            )
+                                        "
+                                    >
+                                        −
+                                    </button>
+                                    <input
+                                        v-if="character.can_update"
+                                        :value="character.gold"
+                                        type="number"
+                                        min="0"
+                                        class="w-20 bg-stone-900 px-2 py-1 text-center text-2xl font-bold text-amber-400"
+                                        aria-label="Gold amount"
+                                        @change="
+                                            updateGold(
+                                                character,
+                                                Number(
+                                                    (
+                                                        $event.target as HTMLInputElement
+                                                    ).value,
+                                                ),
+                                            )
+                                        "
+                                    />
+                                    <strong
+                                        v-else
+                                        class="px-2 py-1 text-2xl text-amber-400"
+                                    >
+                                        {{ character.gold }}
+                                    </strong>
+                                    <button
+                                        v-if="character.can_update"
+                                        class="size-8 bg-stone-800 font-bold transition duration-150 hover:bg-amber-700 hover:text-stone-950 active:scale-90 active:bg-amber-500"
+                                        @click="
+                                            openGoldAdjustment(character, 'add')
+                                        "
+                                    >
+                                        +
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                        <button
-                            type="button"
-                            class="mt-5 flex w-full items-center justify-between border-t border-stone-800 pt-4 text-left font-semibold text-amber-400"
-                            @click="toggleCharacter(character)"
-                        >
-                            <span>Character sheet</span>
-                            <span>{{
-                                openCharacters[character.id] ? '-' : '+'
-                            }}</span>
-                        </button>
-                        <div
-                            v-if="openCharacters[character.id]"
-                            class="mt-3 space-y-2"
-                        >
+                        <section class="mt-4">
+                            <h4 class="font-bold text-amber-400">
+                                Active Items
+                            </h4>
+                            <div
+                                v-if="
+                                    character.items.some(
+                                        (item) => item.is_active,
+                                    )
+                                "
+                                class="mt-2 space-y-2"
+                            >
+                                <article
+                                    v-for="item in character.items.filter(
+                                        (entry) => entry.is_active,
+                                    )"
+                                    :key="item.id"
+                                    class="flex items-start justify-between gap-3 bg-stone-950 p-3"
+                                >
+                                    <div class="flex min-w-0 gap-3">
+                                        <img
+                                            v-if="item.icon"
+                                            :src="item.icon"
+                                            alt=""
+                                            class="size-9 shrink-0 object-contain"
+                                        />
+                                        <div>
+                                            <strong
+                                                >{{ item.name }} ×{{
+                                                    item.quantity
+                                                }}</strong
+                                            >
+                                            <p
+                                                v-if="item.description"
+                                                class="text-sm text-stone-400"
+                                            >
+                                                {{ item.description }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        v-if="character.can_update"
+                                        type="button"
+                                        class="shrink-0 text-sm text-amber-400 hover:text-amber-300"
+                                        @click="
+                                            toggleActiveItem(character, item)
+                                        "
+                                    >
+                                        Stop using
+                                    </button>
+                                </article>
+                            </div>
+                            <p v-else class="mt-1 text-sm text-stone-500">
+                                No active items.
+                            </p>
+                        </section>
+                        <div class="mt-5 space-y-2">
                             <section
-                                v-for="tray in character.trays"
-                                :key="tray.key"
+                                v-for="section in sheetSections"
+                                :key="section.key"
                                 class="overflow-hidden border border-stone-800 bg-stone-950"
                             >
                                 <button
                                     type="button"
-                                    class="flex w-full items-center justify-between p-3 text-left font-semibold"
+                                    class="flex w-full items-center gap-3 p-3 text-left font-semibold"
+                                    :aria-expanded="
+                                        openSections[
+                                            sectionKey(
+                                                character.id,
+                                                section.key,
+                                            )
+                                        ]
+                                    "
                                     @click="
                                         openSections[
-                                            sectionKey(character.id, tray.key)
+                                            sectionKey(
+                                                character.id,
+                                                section.key,
+                                            )
                                         ] =
                                             !openSections[
                                                 sectionKey(
                                                     character.id,
-                                                    tray.key,
+                                                    section.key,
                                                 )
                                             ]
                                     "
                                 >
-                                    <span>{{ tray.name }}</span>
-                                    <span>{{
-                                        openSections[
-                                            sectionKey(character.id, tray.key)
-                                        ]
-                                            ? '-'
-                                            : '+'
-                                    }}</span>
+                                    <svg
+                                        aria-hidden="true"
+                                        viewBox="0 0 24 24"
+                                        class="size-4 shrink-0 transition-transform"
+                                        :class="{
+                                            'rotate-90':
+                                                openSections[
+                                                    sectionKey(
+                                                        character.id,
+                                                        section.key,
+                                                    )
+                                                ],
+                                        }"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    >
+                                        <path d="m9 18 6-6-6-6" />
+                                    </svg>
+                                    <span>{{ section.name }}</span>
                                 </button>
                                 <div
                                     v-if="
                                         openSections[
-                                            sectionKey(character.id, tray.key)
+                                            sectionKey(
+                                                character.id,
+                                                section.key,
+                                            )
                                         ]
                                     "
                                     class="space-y-2 border-t border-stone-800 p-3 text-sm"
                                 >
                                     <template
-                                        v-if="
-                                            tray.key === 'inventory' ||
-                                            tray.key === 'equipment'
-                                        "
+                                        v-if="section.key === 'inventory'"
                                     >
                                         <article
                                             v-for="item in character.items"
                                             :key="item.id"
                                             class="bg-stone-900 p-3"
                                         >
-                                            <strong
-                                                >{{ item.name }} x{{
-                                                    item.quantity
-                                                }}</strong
+                                            <div
+                                                class="flex items-center gap-2"
                                             >
+                                                <img
+                                                    v-if="item.icon"
+                                                    :src="item.icon"
+                                                    alt=""
+                                                    class="size-8 object-contain"
+                                                />
+                                                <strong
+                                                    >{{ item.name }} x{{
+                                                        item.quantity
+                                                    }}</strong
+                                                >
+                                            </div>
                                             <p
                                                 v-if="item.description"
                                                 class="text-stone-400"
                                             >
                                                 {{ item.description }}
                                             </p>
+                                            <button
+                                                v-if="character.can_update"
+                                                type="button"
+                                                class="mt-2 border border-stone-700 px-3 py-1 font-semibold text-amber-400 hover:border-amber-600"
+                                                @click="
+                                                    toggleActiveItem(
+                                                        character,
+                                                        item,
+                                                    )
+                                                "
+                                            >
+                                                {{
+                                                    item.is_active
+                                                        ? 'Stop using'
+                                                        : 'Use item'
+                                                }}
+                                            </button>
                                             <p
                                                 v-if="item.slots.length"
                                                 class="text-amber-500"
@@ -586,7 +928,9 @@ onUnmounted(() => {
                                             No items.
                                         </p>
                                     </template>
-                                    <template v-else-if="tray.key === 'spells'">
+                                    <template
+                                        v-else-if="section.key === 'abilities'"
+                                    >
                                         <article
                                             v-for="ability in character.spells"
                                             :key="ability.id"
@@ -595,7 +939,19 @@ onUnmounted(() => {
                                                 'opacity-50': ability.is_used,
                                             }"
                                         >
-                                            <strong>{{ ability.name }}</strong>
+                                            <div
+                                                class="flex items-center gap-2"
+                                            >
+                                                <img
+                                                    v-if="ability.icon"
+                                                    :src="ability.icon"
+                                                    alt=""
+                                                    class="size-8 object-contain"
+                                                />
+                                                <strong>{{
+                                                    ability.name
+                                                }}</strong>
+                                            </div>
                                             <p class="text-stone-400">
                                                 {{ ability.description }}
                                             </p>
@@ -607,7 +963,9 @@ onUnmounted(() => {
                                             No spells.
                                         </p>
                                     </template>
-                                    <template v-else-if="tray.key === 'skills'">
+                                    <template
+                                        v-if="section.key === 'abilities'"
+                                    >
                                         <article
                                             v-for="ability in character.skills"
                                             :key="ability.id"
@@ -616,7 +974,19 @@ onUnmounted(() => {
                                                 'opacity-50': ability.is_used,
                                             }"
                                         >
-                                            <strong>{{ ability.name }}</strong>
+                                            <div
+                                                class="flex items-center gap-2"
+                                            >
+                                                <img
+                                                    v-if="ability.icon"
+                                                    :src="ability.icon"
+                                                    alt=""
+                                                    class="size-8 object-contain"
+                                                />
+                                                <strong>{{
+                                                    ability.name
+                                                }}</strong>
+                                            </div>
                                             <p class="text-stone-400">
                                                 {{ ability.description }}
                                             </p>
@@ -628,17 +998,6 @@ onUnmounted(() => {
                                             No skills.
                                         </p>
                                     </template>
-                                    <p
-                                        v-else-if="tray.key === 'notes'"
-                                        class="whitespace-pre-wrap text-stone-300"
-                                    >
-                                        {{
-                                            character.note || 'No public notes.'
-                                        }}
-                                    </p>
-                                    <p v-else class="text-stone-500">
-                                        No entries yet.
-                                    </p>
                                 </div>
                             </section>
                         </div>

@@ -27,16 +27,16 @@ class PersonalCharacterSheetController extends Controller
         $trays = TrayDefinition::query()->availableToUser($game->owner)->where('game_system_version_id', $game->game_system_version_id)->orderBy('display_order')->get();
 
         return Inertia::render('Characters/Show', ['game' => ['id' => $game->id, 'name' => $game->name, 'is_spectator' => ! $isMember], 'character' => [
-            'id' => $character->id, 'name' => $character->name, 'class_name' => $character->characterClass?->name, 'can_update' => $canUpdate,
+            'id' => $character->id, 'name' => $character->name, 'class_name' => $character->characterClass?->name, 'gold' => $character->gold, 'can_update' => $canUpdate,
             'stats' => $character->stats->sortBy('definition.display_order')->values()->map(fn ($stat) => ['id' => $stat->id, 'name' => $stat->definition->name, 'value' => $stat->value, 'max_value' => $stat->max_value]),
             'trays' => $trays->map(fn ($tray) => ['key' => $tray->key, 'name' => $tray->name, 'default_open' => $tray->default_open]),
             'slots' => $available(SlotDefinition::class)->map(fn ($slot) => ['id' => $slot->id, 'name' => $slot->name]),
             'item_definitions' => $available(ItemDefinition::class)->map(fn ($item) => ['id' => $item->id, 'name' => $item->name]),
-            'items' => $character->items->map(fn ($item) => ['id' => $item->id, 'name' => $item->custom_name ?? $item->definition?->name, 'description' => $item->custom_description ?? $item->definition?->description, 'quantity' => $item->quantity, 'slots' => $item->slots->map(fn ($slot) => ['id' => $slot->definition->id, 'name' => $slot->definition->name])]),
+            'items' => $character->items->map(fn ($item) => ['id' => $item->id, 'name' => $item->custom_name ?? $item->definition?->name, 'description' => $item->custom_description ?? $item->definition?->description, 'icon' => $item->definition?->icon ? '/storage/'.$item->definition->icon : null, 'quantity' => $item->quantity, 'is_active' => $item->is_active, 'slots' => $item->slots->map(fn ($slot) => ['id' => $slot->definition->id, 'name' => $slot->definition->name])]),
             'spell_definitions' => $available(SpellDefinition::class)->map(fn ($spell) => ['id' => $spell->id, 'name' => $spell->name]),
-            'spells' => $character->spells->map(fn ($spell) => ['id' => $spell->id, 'name' => $spell->definition->name, 'description' => $spell->definition->description, 'is_used' => $spell->is_used, 'charges' => $spell->charges]),
+            'spells' => $character->spells->map(fn ($spell) => ['id' => $spell->id, 'name' => $spell->definition->name, 'description' => $spell->definition->description, 'icon' => $spell->definition->icon ? '/storage/'.$spell->definition->icon : null, 'is_used' => $spell->is_used, 'charges' => $spell->charges]),
             'skill_definitions' => $available(SkillDefinition::class)->map(fn ($skill) => ['id' => $skill->id, 'name' => $skill->name]),
-            'skills' => $character->skills->map(fn ($skill) => ['id' => $skill->id, 'name' => $skill->definition->name, 'description' => $skill->definition->description, 'is_used' => $skill->is_used, 'charges' => $skill->charges]),
+            'skills' => $character->skills->map(fn ($skill) => ['id' => $skill->id, 'name' => $skill->definition->name, 'description' => $skill->definition->description, 'icon' => $skill->definition->icon ? '/storage/'.$skill->definition->icon : null, 'is_used' => $skill->is_used, 'charges' => $skill->charges]),
             'note' => ! $character->note || (! $character->note->is_private || $canUpdate) ? ['content' => $character->note?->content, 'is_private' => $character->note?->is_private ?? false] : null,
         ]]);
     }

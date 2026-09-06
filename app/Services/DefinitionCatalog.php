@@ -6,6 +6,7 @@ use App\Models\GameSystemVersion;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
@@ -50,6 +51,9 @@ class DefinitionCatalog
         }
         if (in_array($type, ['items', 'spells', 'skills', 'stats', 'slots', 'trays'], true)) {
             $rules['icon'] = ['nullable', 'string', 'max:255'];
+            $rules['icon_upload'] = ['nullable', 'image', 'mimes:png,jpg,jpeg,webp,gif', 'max:2048'];
+        } else {
+            $rules['icon_upload'] = ['prohibited'];
         }
         if (in_array($type, ['classes', 'stats', 'slots', 'trays'], true)) {
             $rules['display_order'] = ['nullable', 'integer', 'min:0', 'max:100000'];
@@ -73,7 +77,19 @@ class DefinitionCatalog
 
     public function save(array $input, string $type, GameSystemVersion $version, ?User $owner, ?Model $definition = null): Model
     {
-        $attributes = $this->validate($input, $type, $version, $owner, $definition) + [
+        $attributes = $this->validate($input, $type, $version, $owner, $definition);
+        $iconUpload = Arr::pull($attributes, 'icon_upload');
+
+        if ($iconUpload) {
+            $oldIcon = $definition?->getAttribute('icon');
+            $attributes['icon'] = $iconUpload->store("catalog-icons/{$version->id}", 'public');
+
+            if (is_string($oldIcon) && str_starts_with($oldIcon, 'catalog-icons/')) {
+                Storage::disk('public')->delete($oldIcon);
+            }
+        }
+
+        $attributes += [
             'game_system_version_id' => $version->id,
             'owner_user_id' => $owner?->id,
             'scope_key' => $owner ? "user:{$owner->id}" : 'system',
@@ -82,5 +98,16 @@ class DefinitionCatalog
         $definition->fill($attributes)->save();
 
         return $definition;
+    }
+
+    public function delete(Model $definition): void
+    {
+        $icon = $definition->getAttribute('icon');
+
+        if (is_string($icon) && str_starts_with($icon, 'catalog-icons/')) {
+            Storage::disk('public')->delete($icon);
+        }
+
+        $definition->delete();
     }
 }

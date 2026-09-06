@@ -81,6 +81,13 @@ const open = ref(false);
                             @click="open = false"
                             >Admin</Link
                         >
+                        <Link
+                            v-if="page.props.auth.user.is_admin"
+                            href="/admin/catalog"
+                            class="block px-3 py-2 text-sm text-stone-300 hover:bg-stone-950 hover:text-amber-400"
+                            @click="open = false"
+                            >System catalog</Link
+                        >
                         <button
                             class="block w-full px-3 py-2 text-left text-sm text-stone-300 hover:bg-stone-950 hover:text-amber-400"
                             @click="router.post('/logout')"

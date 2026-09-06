@@ -120,6 +120,7 @@ class GameSessionController extends Controller
                         'id' => $character->id,
                         'name' => $character->name,
                         'class_name' => $character->characterClass?->name,
+                        'gold' => $character->gold,
                         'assigned_user_id' => $sessionCharacter->assigned_user_id,
                         'assigned_user_name' => $sessionCharacter->assignedUser?->name,
                         'can_update' => $canUpdate,
@@ -133,16 +134,20 @@ class GameSessionController extends Controller
                         'items' => $character->items->map(fn ($item) => [
                             'id' => $item->id, 'name' => $item->custom_name ?? $item->definition?->name,
                             'description' => $item->custom_description ?? $item->definition?->description,
+                            'icon' => $item->definition?->icon ? '/storage/'.$item->definition->icon : null,
                             'quantity' => $item->quantity,
+                            'is_active' => $item->is_active,
                             'slots' => $item->slots->map(fn ($slot) => $slot->definition->name)->values(),
                         ]),
                         'spells' => $character->spells->map(fn ($spell) => [
                             'id' => $spell->id, 'name' => $spell->definition->name,
                             'description' => $spell->definition->description, 'is_used' => $spell->is_used,
+                            'icon' => $spell->definition->icon ? '/storage/'.$spell->definition->icon : null,
                         ]),
                         'skills' => $character->skills->map(fn ($skill) => [
                             'id' => $skill->id, 'name' => $skill->definition->name,
                             'description' => $skill->definition->description, 'is_used' => $skill->is_used,
+                            'icon' => $skill->definition->icon ? '/storage/'.$skill->definition->icon : null,
                         ]),
                         'note' => ! $character->note || (! $character->note->is_private || $canUpdate)
                             ? $character->note?->content

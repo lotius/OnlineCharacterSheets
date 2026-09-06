@@ -11,6 +11,8 @@ use App\Http\Requests\Inventory\UpdateCharacterItemRequest;
 use App\Models\Character;
 use App\Models\CharacterItem;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class CharacterItemController extends Controller
 {
@@ -39,5 +41,20 @@ class CharacterItemController extends Controller
         $broadcast->character($character);
 
         return back()->with('success', 'Item removed.');
+    }
+
+    public function updateActive(Request $request, Character $character, CharacterItem $item, BroadcastGameSessionUpdate $broadcast): RedirectResponse
+    {
+        $this->authorize('update', $character);
+
+        if ($item->character_id !== $character->id) {
+            throw ValidationException::withMessages(['item' => 'That item does not belong to this character.']);
+        }
+
+        $validated = $request->validate(['is_active' => ['required', 'boolean']]);
+        $item->update(['is_active' => $validated['is_active']]);
+        $broadcast->character($character);
+
+        return back();
     }
 }

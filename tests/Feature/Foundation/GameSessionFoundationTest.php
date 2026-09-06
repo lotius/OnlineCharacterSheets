@@ -26,7 +26,7 @@ class GameSessionFoundationTest extends TestCase
         $this->assertSame(['body', 'mind'], $version->stats->sortBy('display_order')->pluck('key')->all());
         $this->assertCount(4, $version->slots);
         $this->assertCount(6, $version->trays);
-        $this->assertCount(4, $version->characterClasses);
+        $this->assertCount(12, $version->characterClasses);
     }
 
     public function test_creating_a_room_makes_its_owner_an_active_dm(): void

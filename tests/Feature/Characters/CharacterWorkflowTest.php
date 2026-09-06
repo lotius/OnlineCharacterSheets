@@ -35,6 +35,7 @@ class CharacterWorkflowTest extends TestCase
         $character = Character::query()->with('stats.definition')->sole();
         $this->assertSame(['body' => 8, 'mind' => 2], $character->stats->mapWithKeys(fn ($stat) => [$stat->definition->key => $stat->value])->all());
         $this->assertDatabaseHas('session_characters', ['game_session_id' => $game->id, 'character_id' => $character->id]);
+        $this->assertSame(['broadsword'], $character->items()->with('definition')->get()->pluck('definition.key')->all());
     }
 
     public function test_only_dm_can_create_and_assign_characters(): void

@@ -10,6 +10,8 @@ use App\Models\ItemDefinition;
 use App\Models\User;
 use Database\Seeders\HeroQuestGameSystemSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class CatalogManagementTest extends TestCase
@@ -56,14 +58,105 @@ class CatalogManagementTest extends TestCase
                 ->where('versions.0.name', 'HeroQuest'));
     }
 
+    public function test_admin_catalog_loads_definition_types_without_display_order(): void
+    {
+        $version = GameSystemVersion::query()->sole();
+        $admin = User::factory()->create(['is_admin' => true]);
+
+        ItemDefinition::query()->create([
+            'game_system_version_id' => $version->id,
+            'scope_key' => 'system',
+            'key' => 'catalog_test_item',
+            'name' => 'Catalog Test Item',
+        ]);
+
+        $this->actingAs($admin)
+            ->get("/admin/catalog?version={$version->id}")
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Catalog/Index')
+                ->where('groups.items.definitions.0.name', 'Bandolier')
+                ->where('groups.items.definitions.3.name', 'Catalog Test Item'));
+    }
+
+    public function test_administrator_can_upload_an_item_icon(): void
+    {
+        Storage::fake('public');
+        $version = GameSystemVersion::query()->sole();
+        $admin = User::factory()->create(['is_admin' => true]);
+
+        $this->actingAs($admin)->post("/admin/catalog/{$version->id}/items", [
+            'name' => 'Iconic Sword',
+            'key' => 'iconic_sword',
+            'icon_upload' => UploadedFile::fake()->createWithContent(
+                'sword.png',
+                base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='),
+            ),
+        ])->assertRedirect()->assertSessionDoesntHaveErrors();
+
+        $item = ItemDefinition::query()->where('key', 'iconic_sword')->sole();
+        $this->assertNotNull($item->icon);
+        Storage::disk('public')->assertExists($item->icon);
+    }
+
+    public function test_administrator_can_bulk_import_catalog_definitions(): void
+    {
+        $version = GameSystemVersion::query()->sole();
+        $admin = User::factory()->create(['is_admin' => true]);
+        $records = [
+            [
+                'key' => 'broadsword',
+                'name' => 'Improved Broadsword',
+                'description' => 'Updated by import.',
+                'category' => 'weapon',
+                'required_slots' => ['right_hand'],
+            ],
+            [
+                'key' => 'lantern',
+                'name' => 'Lantern',
+                'description' => 'Illuminates dark passages.',
+                'category' => 'tool',
+            ],
+        ];
+
+        $this->actingAs($admin)->post("/admin/catalog/{$version->id}/items/import", [
+            'catalog_file' => UploadedFile::fake()->createWithContent(
+                'items.json',
+                json_encode($records, JSON_THROW_ON_ERROR),
+            ),
+        ])->assertRedirect()->assertSessionDoesntHaveErrors();
+
+        $this->assertSame('Improved Broadsword', ItemDefinition::query()->where('key', 'broadsword')->sole()->name);
+        $lantern = ItemDefinition::query()->where('key', 'lantern')->sole();
+        $this->assertSame('tool', $lantern->configuration['category']);
+        $this->assertSame(['right_hand'], ItemDefinition::query()->where('key', 'broadsword')->sole()->configuration['required_slots']);
+    }
+
+    public function test_catalog_export_includes_records_and_optional_field_documentation(): void
+    {
+        $version = GameSystemVersion::query()->sole();
+        $admin = User::factory()->create(['is_admin' => true]);
+
+        $response = $this->actingAs($admin)->get("/admin/catalog/{$version->id}/items/export");
+
+        $response->assertOk()->assertHeader('content-type', 'application/json');
+        $export = json_decode($response->streamedContent(), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame('items', $export['definition_type']);
+        $this->assertSame('Human-readable display name.', $export['fields']['required']['name']);
+        $this->assertArrayHasKey('category', $export['fields']['optional']);
+        $this->assertArrayHasKey('required_slots', $export['fields']['optional']);
+        $this->assertSame('bandolier', $export['records'][0]['key']);
+    }
+
     public function test_administrators_can_create_game_elements_piecemeal(): void
     {
         $version = GameSystemVersion::query()->sole();
         $admin = User::factory()->create(['is_admin' => true]);
 
         $this->actingAs($admin)->post("/admin/catalog/{$version->id}/classes", [
-            'name' => 'Knight',
-            'key' => 'knight',
+            'name' => 'Guardian',
+            'key' => 'guardian',
             'description' => 'A sturdy armored hero.',
             'display_order' => 50,
             'configuration_json' => json_encode(['default_stats' => ['body' => 7, 'mind' => 3]]),
@@ -73,13 +166,13 @@ class CatalogManagementTest extends TestCase
             'game_system_version_id' => $version->id,
             'owner_user_id' => null,
             'scope_key' => 'system',
-            'key' => 'knight',
-            'name' => 'Knight',
+            'key' => 'guardian',
+            'name' => 'Guardian',
         ]);
 
         $this->assertSame(
             ['body' => 7, 'mind' => 3],
-            CharacterClassDefinition::query()->where('key', 'knight')->sole()->configuration['default_stats'],
+            CharacterClassDefinition::query()->where('key', 'guardian')->sole()->configuration['default_stats'],
         );
     }
 

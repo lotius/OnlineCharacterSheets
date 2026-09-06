@@ -16,13 +16,16 @@ type Item = {
     id: number;
     name: string;
     description: string | null;
+    icon: string | null;
     quantity: number;
+    is_active: boolean;
     slots: Option[];
 };
 type Ability = {
     id: number;
     name: string;
     description: string | null;
+    icon: string | null;
     is_used: boolean;
     charges: number | null;
 };
@@ -30,6 +33,7 @@ type Character = {
     id: number;
     name: string;
     class_name: string | null;
+    gold: number;
     can_update: boolean;
     stats: Stat[];
     trays: Array<{ key: string; name: string; default_open: boolean }>;
@@ -55,12 +59,24 @@ const connectionStatus = ref<'connecting' | 'connected' | 'error'>(
     'connecting',
 );
 const changedStats = ref<Record<number, boolean>>({});
+const goldAdjustment = ref<'add' | 'subtract' | null>(null);
+const goldAdjustmentAmount = ref(1);
 let stopConnectionListener: (() => void) | null = null;
 let subscribedChannelName: string | null = null;
 let viewerHeartbeatInterval: number | null = null;
+const sheetSections = [
+    {
+        key: 'inventory',
+        name: 'Inventory',
+    },
+    {
+        key: 'abilities',
+        name: 'Spells / Skills',
+    },
+] as const;
 const open = reactive(
     Object.fromEntries(
-        props.character.trays.map((tray) => [tray.key, tray.default_open]),
+        sheetSections.map((section) => [section.key, false]),
     ) as Record<string, boolean>,
 );
 const itemForm = useForm({
@@ -71,10 +87,6 @@ const itemForm = useForm({
 });
 const spellForm = useForm({ spell_definition_id: '' });
 const skillForm = useForm({ skill_definition_id: '' });
-const noteForm = useForm({
-    content: props.character.note?.content || '',
-    is_private: props.character.note?.is_private || false,
-});
 const preserve = { preserveScroll: true } as const;
 const stat = (entry: Stat, change: number) =>
     router.patch(
@@ -82,6 +94,25 @@ const stat = (entry: Stat, change: number) =>
         { value: Number(entry.value) + change },
         preserve,
     );
+const updateGold = (gold: number) =>
+    router.patch(
+        `/characters/${props.character.id}/gold`,
+        { gold: Math.max(0, gold) },
+        preserve,
+    );
+const openGoldAdjustment = (operation: 'add' | 'subtract') => {
+    goldAdjustment.value = operation;
+    goldAdjustmentAmount.value = 1;
+};
+const applyGoldAdjustment = () => {
+    const change = Math.max(1, Math.floor(goldAdjustmentAmount.value));
+    updateGold(
+        goldAdjustment.value === 'subtract'
+            ? Math.max(0, props.character.gold - change)
+            : props.character.gold + change,
+    );
+    goldAdjustment.value = null;
+};
 const quantity = (item: Item, change: number) =>
     router.patch(
         `/characters/${props.character.id}/items/${item.id}`,
@@ -100,6 +131,12 @@ const equip = (item: Item, event: Event) => {
 const unequip = (item: Item, slot: Option) =>
     router.delete(
         `/characters/${props.character.id}/items/${item.id}/slots/${slot.id}`,
+        preserve,
+    );
+const toggleActiveItem = (item: Item) =>
+    router.patch(
+        `/characters/${props.character.id}/items/${item.id}/active`,
+        { is_active: !item.is_active },
         preserve,
     );
 const toggleAbility = (kind: 'spells' | 'skills', ability: Ability) =>
@@ -276,35 +313,197 @@ onUnmounted(() => {
                             </button>
                         </div>
                     </div>
+                    <div
+                        class="min-w-28 border border-stone-800 bg-stone-900 p-2 text-center"
+                    >
+                        <p
+                            class="text-[10px] tracking-wide text-stone-400 uppercase"
+                        >
+                            Gold
+                        </p>
+                        <div class="flex items-center justify-center gap-2">
+                            <button
+                                v-if="character.can_update"
+                                :disabled="character.gold <= 0"
+                                class="size-7 rounded bg-stone-800 font-bold transition duration-150 enabled:hover:bg-amber-700 enabled:hover:text-stone-950 enabled:active:scale-90 enabled:active:bg-amber-500 disabled:opacity-30"
+                                @click="openGoldAdjustment('subtract')"
+                            >
+                                −
+                            </button>
+                            <input
+                                v-if="character.can_update"
+                                :value="character.gold"
+                                type="number"
+                                min="0"
+                                class="w-16 bg-stone-950 px-1 py-1 text-center font-bold text-amber-400"
+                                aria-label="Gold amount"
+                                @change="
+                                    updateGold(
+                                        Number(
+                                            ($event.target as HTMLInputElement)
+                                                .value,
+                                        ),
+                                    )
+                                "
+                            />
+                            <strong v-else class="px-2 py-1 text-amber-400">
+                                {{ character.gold }}
+                            </strong>
+                            <button
+                                v-if="character.can_update"
+                                class="size-7 rounded bg-stone-800 font-bold transition duration-150 hover:bg-amber-700 hover:text-stone-950 active:scale-90 active:bg-amber-500"
+                                @click="openGoldAdjustment('add')"
+                            >
+                                +
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </header>
+        <div
+            v-if="goldAdjustment"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/80 p-4"
+            @click.self="goldAdjustment = null"
+        >
+            <form
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="gold-adjustment-title"
+                class="w-full max-w-sm border border-amber-800/50 bg-stone-900 p-6 shadow-2xl"
+                @submit.prevent="applyGoldAdjustment"
+            >
+                <div class="flex items-center justify-between gap-4">
+                    <h2
+                        id="gold-adjustment-title"
+                        class="hq-rule-heading text-xl font-bold"
+                    >
+                        {{
+                            goldAdjustment === 'add'
+                                ? 'Add Gold'
+                                : 'Subtract Gold'
+                        }}
+                    </h2>
+                    <button
+                        type="button"
+                        class="text-2xl text-stone-400 hover:text-stone-100"
+                        aria-label="Close gold adjustment"
+                        @click="goldAdjustment = null"
+                    >
+                        ×
+                    </button>
+                </div>
+                <p class="mt-3 text-sm text-stone-400">
+                    Current gold: {{ character.gold }}
+                </p>
+                <label class="mt-4 block text-sm text-stone-300">
+                    Amount
+                    <input
+                        v-model.number="goldAdjustmentAmount"
+                        type="number"
+                        min="1"
+                        :max="
+                            goldAdjustment === 'subtract'
+                                ? character.gold
+                                : undefined
+                        "
+                        required
+                        autofocus
+                        class="mt-1 w-full border border-stone-700 bg-stone-950 p-3 text-xl text-amber-400"
+                    />
+                </label>
+                <button
+                    class="mt-5 w-full bg-amber-600 p-3 font-bold text-stone-950 hover:bg-amber-500"
+                >
+                    {{
+                        goldAdjustment === 'add' ? 'Add Gold' : 'Subtract Gold'
+                    }}
+                </button>
+            </form>
+        </div>
         <div class="mx-auto max-w-3xl space-y-4 px-4 py-6">
+            <section>
+                <h2 class="hq-rule-heading text-lg font-bold text-amber-400">
+                    Active Items
+                </h2>
+                <div
+                    v-if="character.items.some((item) => item.is_active)"
+                    class="mt-3 space-y-2"
+                >
+                    <article
+                        v-for="item in character.items.filter(
+                            (entry) => entry.is_active,
+                        )"
+                        :key="item.id"
+                        class="flex items-start justify-between gap-3 bg-stone-900 p-3"
+                    >
+                        <div class="flex min-w-0 gap-3">
+                            <img
+                                v-if="item.icon"
+                                :src="item.icon"
+                                alt=""
+                                class="size-10 shrink-0 object-contain"
+                            />
+                            <div>
+                                <strong
+                                    >{{ item.name }} ×{{
+                                        item.quantity
+                                    }}</strong
+                                >
+                                <p
+                                    v-if="item.description"
+                                    class="text-sm text-stone-400"
+                                >
+                                    {{ item.description }}
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            v-if="character.can_update"
+                            type="button"
+                            class="shrink-0 text-sm text-amber-400 hover:text-amber-300"
+                            @click="toggleActiveItem(item)"
+                        >
+                            Stop using
+                        </button>
+                    </article>
+                </div>
+                <p v-else class="mt-2 text-sm text-stone-500">
+                    No active items.
+                </p>
+            </section>
             <section
-                v-for="tray in character.trays"
-                :key="tray.key"
+                v-for="section in sheetSections"
+                :key="section.key"
                 class="overflow-hidden border border-stone-800 bg-stone-900"
             >
                 <button
-                    class="flex w-full items-center justify-between p-4 text-left text-lg font-bold"
-                    @click="open[tray.key] = !open[tray.key]"
+                    class="flex w-full items-center gap-3 p-4 text-left text-lg font-bold"
+                    :aria-expanded="open[section.key]"
+                    @click="open[section.key] = !open[section.key]"
                 >
-                    <span>{{ tray.name }}</span
-                    ><span>{{ open[tray.key] ? '−' : '+' }}</span>
+                    <svg
+                        aria-hidden="true"
+                        viewBox="0 0 24 24"
+                        class="size-4 shrink-0 transition-transform"
+                        :class="{ 'rotate-90': open[section.key] }"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    >
+                        <path d="m9 18 6-6-6-6" />
+                    </svg>
+                    <span>{{ section.name }}</span>
                 </button>
                 <div
-                    v-if="open[tray.key]"
+                    v-if="open[section.key]"
                     class="border-t border-stone-800 p-4"
                 >
-                    <template
-                        v-if="
-                            tray.key === 'inventory' || tray.key === 'equipment'
-                        "
-                    >
+                    <template v-if="section.key === 'inventory'">
                         <form
-                            v-if="
-                                character.can_update && tray.key === 'inventory'
-                            "
+                            v-if="character.can_update"
                             class="mb-4 grid gap-2 sm:grid-cols-2"
                             @submit.prevent="
                                 itemForm.post(
@@ -349,38 +548,48 @@ onUnmounted(() => {
                                 class="rounded-lg bg-stone-950 p-3"
                             >
                                 <div class="flex justify-between gap-3">
-                                    <div>
-                                        <strong>{{ item.name }}</strong>
-                                        <p class="text-sm text-stone-400">
-                                            {{ item.description }}
-                                        </p>
-                                        <p
-                                            v-if="item.slots.length"
-                                            class="mt-1 text-xs text-amber-500"
-                                        >
-                                            Equipped:
-                                            <template
-                                                v-if="character.can_update"
+                                    <div class="flex min-w-0 gap-3">
+                                        <img
+                                            v-if="item.icon"
+                                            :src="item.icon"
+                                            alt=""
+                                            class="size-10 shrink-0 object-contain"
+                                        />
+                                        <div>
+                                            <strong>{{ item.name }}</strong>
+                                            <p class="text-sm text-stone-400">
+                                                {{ item.description }}
+                                            </p>
+                                            <p
+                                                v-if="item.slots.length"
+                                                class="mt-1 text-xs text-amber-500"
                                             >
-                                                <button
-                                                    v-for="slot in item.slots"
-                                                    :key="slot.id"
-                                                    class="mr-2 underline"
-                                                    @click="unequip(item, slot)"
+                                                Equipped:
+                                                <template
+                                                    v-if="character.can_update"
                                                 >
-                                                    {{ slot.name }} ×
-                                                </button>
-                                            </template>
-                                            <template v-else>
-                                                <span
-                                                    v-for="slot in item.slots"
-                                                    :key="slot.id"
-                                                    class="mr-2"
-                                                >
-                                                    {{ slot.name }}
-                                                </span>
-                                            </template>
-                                        </p>
+                                                    <button
+                                                        v-for="slot in item.slots"
+                                                        :key="slot.id"
+                                                        class="mr-2 underline"
+                                                        @click="
+                                                            unequip(item, slot)
+                                                        "
+                                                    >
+                                                        {{ slot.name }} ×
+                                                    </button>
+                                                </template>
+                                                <template v-else>
+                                                    <span
+                                                        v-for="slot in item.slots"
+                                                        :key="slot.id"
+                                                        class="mr-2"
+                                                    >
+                                                        {{ slot.name }}
+                                                    </span>
+                                                </template>
+                                            </p>
+                                        </div>
                                     </div>
                                     <div
                                         v-if="character.can_update"
@@ -408,10 +617,7 @@ onUnmounted(() => {
                                     </div>
                                 </div>
                                 <select
-                                    v-if="
-                                        character.can_update &&
-                                        tray.key === 'equipment'
-                                    "
+                                    v-if="character.can_update"
                                     class="mt-2 rounded bg-stone-900 p-2 text-sm"
                                     @change="equip(item, $event)"
                                 >
@@ -424,10 +630,22 @@ onUnmounted(() => {
                                         {{ slot.name }}
                                     </option>
                                 </select>
+                                <button
+                                    v-if="character.can_update"
+                                    type="button"
+                                    class="mt-2 border border-stone-700 px-3 py-2 text-sm font-semibold text-amber-400 hover:border-amber-600"
+                                    @click="toggleActiveItem(item)"
+                                >
+                                    {{
+                                        item.is_active
+                                            ? 'Stop using'
+                                            : 'Use item'
+                                    }}
+                                </button>
                             </article>
                         </div>
                     </template>
-                    <template v-else-if="tray.key === 'spells'"
+                    <template v-else-if="section.key === 'abilities'"
                         ><form
                             v-if="character.can_update"
                             class="mb-3 flex gap-2"
@@ -467,13 +685,29 @@ onUnmounted(() => {
                                 class="w-full text-left"
                                 @click="toggleAbility('spells', ability)"
                             >
-                                <strong>{{ ability.name }}</strong>
+                                <span class="flex items-center gap-2">
+                                    <img
+                                        v-if="ability.icon"
+                                        :src="ability.icon"
+                                        alt=""
+                                        class="size-8 object-contain"
+                                    />
+                                    <strong>{{ ability.name }}</strong>
+                                </span>
                                 <p class="text-sm text-stone-400">
                                     {{ ability.description }}
                                 </p>
                             </button>
                             <div v-else>
-                                <strong>{{ ability.name }}</strong>
+                                <span class="flex items-center gap-2">
+                                    <img
+                                        v-if="ability.icon"
+                                        :src="ability.icon"
+                                        alt=""
+                                        class="size-8 object-contain"
+                                    />
+                                    <strong>{{ ability.name }}</strong>
+                                </span>
                                 <p class="text-sm text-stone-400">
                                     {{ ability.description }}
                                 </p>
@@ -487,7 +721,7 @@ onUnmounted(() => {
                             </button>
                         </article></template
                     >
-                    <template v-else-if="tray.key === 'skills'"
+                    <template v-if="section.key === 'abilities'"
                         ><form
                             v-if="character.can_update"
                             class="mb-3 flex gap-2"
@@ -527,13 +761,29 @@ onUnmounted(() => {
                                 class="w-full text-left"
                                 @click="toggleAbility('skills', ability)"
                             >
-                                <strong>{{ ability.name }}</strong>
+                                <span class="flex items-center gap-2">
+                                    <img
+                                        v-if="ability.icon"
+                                        :src="ability.icon"
+                                        alt=""
+                                        class="size-8 object-contain"
+                                    />
+                                    <strong>{{ ability.name }}</strong>
+                                </span>
                                 <p class="text-sm text-stone-400">
                                     {{ ability.description }}
                                 </p>
                             </button>
                             <div v-else>
-                                <strong>{{ ability.name }}</strong>
+                                <span class="flex items-center gap-2">
+                                    <img
+                                        v-if="ability.icon"
+                                        :src="ability.icon"
+                                        alt=""
+                                        class="size-8 object-contain"
+                                    />
+                                    <strong>{{ ability.name }}</strong>
+                                </span>
                                 <p class="text-sm text-stone-400">
                                     {{ ability.description }}
                                 </p>
@@ -547,37 +797,6 @@ onUnmounted(() => {
                             </button>
                         </article></template
                     >
-                    <template v-else-if="tray.key === 'notes'"
-                        ><form
-                            v-if="character.can_update"
-                            @submit.prevent="
-                                noteForm.put(
-                                    `/characters/${character.id}/notes`,
-                                    preserve,
-                                )
-                            "
-                        >
-                            <textarea
-                                v-model="noteForm.content"
-                                rows="6"
-                                class="w-full rounded bg-stone-950 p-3"
-                                placeholder="Character notes"
-                            /><label class="mt-2 flex gap-2 text-sm"
-                                ><input
-                                    v-model="noteForm.is_private"
-                                    type="checkbox"
-                                />Private to controller and DM</label
-                            ><button
-                                class="mt-3 rounded bg-amber-600 px-4 py-2 font-bold text-stone-950"
-                            >
-                                Save notes
-                            </button>
-                        </form>
-                        <p v-else class="whitespace-pre-wrap text-stone-300">
-                            {{ character.note?.content || 'No public notes.' }}
-                        </p></template
-                    >
-                    <p v-else class="text-stone-500">No entries yet.</p>
                 </div>
             </section>
         </div>

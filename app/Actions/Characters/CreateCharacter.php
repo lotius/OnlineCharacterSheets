@@ -5,6 +5,7 @@ namespace App\Actions\Characters;
 use App\Models\Character;
 use App\Models\CharacterClassDefinition;
 use App\Models\GameSession;
+use App\Models\ItemDefinition;
 use App\Models\StatDefinition;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -45,7 +46,26 @@ class CreateCharacter
                 ]);
             }
 
-            return $character->load(['characterClass', 'stats.definition']);
+            $startingEquipment = collect($class?->configuration['starting_equipment'] ?? [])
+                ->filter(fn (mixed $key) => is_string($key) && filled($key))
+                ->values();
+            $equipmentDefinitions = ItemDefinition::query()
+                ->availableToUser($session->owner)
+                ->where('game_system_version_id', $session->game_system_version_id)
+                ->whereIn('key', $startingEquipment)
+                ->get()
+                ->keyBy('key');
+
+            foreach ($startingEquipment as $key) {
+                if ($definition = $equipmentDefinitions->get($key)) {
+                    $character->items()->create([
+                        'item_definition_id' => $definition->id,
+                        'quantity' => 1,
+                    ]);
+                }
+            }
+
+            return $character->load(['characterClass', 'stats.definition', 'items.definition']);
         });
     }
 }

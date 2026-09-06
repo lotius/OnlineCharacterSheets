@@ -12,7 +12,7 @@ class CharacterItem extends Model
 
     protected function casts(): array
     {
-        return ['state' => 'array'];
+        return ['is_active' => 'boolean', 'state' => 'array'];
     }
 
     public function character(): BelongsTo

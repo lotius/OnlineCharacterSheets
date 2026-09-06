@@ -7,6 +7,7 @@ use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\CharacterAssignmentController;
 use App\Http\Controllers\CharacterController;
 use App\Http\Controllers\CharacterEquipmentController;
+use App\Http\Controllers\CharacterGoldController;
 use App\Http\Controllers\CharacterItemController;
 use App\Http\Controllers\CharacterNoteController;
 use App\Http\Controllers\CharacterSkillController;
@@ -45,6 +46,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/games/join', [GameSessionJoinController::class, 'store'])->name('games.join');
     Route::get('/library', [CatalogController::class, 'personal'])->name('library');
     Route::post('/library/{version}/{type}', [CatalogController::class, 'storePersonal'])->name('library.store');
+    Route::post('/library/{version}/{type}/import', [CatalogController::class, 'importPersonal'])->name('library.import');
+    Route::get('/library/{version}/{type}/export', [CatalogController::class, 'exportPersonal'])->name('library.export');
     Route::patch('/library/{version}/{type}/{definition}', [CatalogController::class, 'updatePersonal'])->name('library.update');
     Route::delete('/library/{type}/{definition}', [CatalogController::class, 'destroyPersonal'])->name('library.destroy');
     Route::post('/games/{game}/realtime/ping', [RoomRealtimeController::class, 'store'])->name('games.realtime.ping');
@@ -53,8 +56,10 @@ Route::middleware('auth')->group(function () {
     Route::patch('/games/{game}/characters/{sessionCharacter}/assignment', [CharacterAssignmentController::class, 'update'])->name('games.characters.assignment.update');
     Route::delete('/games/{game}/characters/{sessionCharacter}/assignment', [CharacterAssignmentController::class, 'destroy'])->name('games.characters.assignment.destroy');
     Route::patch('/characters/{character}/stats/{stat}', [CharacterStatController::class, 'update'])->name('characters.stats.update');
+    Route::patch('/characters/{character}/gold', [CharacterGoldController::class, 'update'])->name('characters.gold.update');
     Route::post('/characters/{character}/items', [CharacterItemController::class, 'store'])->name('characters.items.store');
     Route::patch('/characters/{character}/items/{item}', [CharacterItemController::class, 'update'])->name('characters.items.update');
+    Route::patch('/characters/{character}/items/{item}/active', [CharacterItemController::class, 'updateActive'])->name('characters.items.active.update');
     Route::delete('/characters/{character}/items/{item}', [CharacterItemController::class, 'destroy'])->name('characters.items.destroy');
     Route::put('/characters/{character}/items/{item}/slots/{slot}', [CharacterEquipmentController::class, 'update'])->name('characters.items.slots.update');
     Route::delete('/characters/{character}/items/{item}/slots/{slot}', [CharacterEquipmentController::class, 'destroy'])->name('characters.items.slots.destroy');
@@ -76,6 +81,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/systems/{system}/versions', [AdminGameSystemController::class, 'storeVersion'])->name('admin.versions.store');
         Route::get('/catalog', [CatalogController::class, 'admin'])->name('admin.catalog');
         Route::post('/catalog/{version}/{type}', [CatalogController::class, 'storeAdmin'])->name('admin.catalog.store');
+        Route::post('/catalog/{version}/{type}/import', [CatalogController::class, 'importAdmin'])->name('admin.catalog.import');
+        Route::get('/catalog/{version}/{type}/export', [CatalogController::class, 'exportAdmin'])->name('admin.catalog.export');
         Route::patch('/catalog/{version}/{type}/{definition}', [CatalogController::class, 'updateAdmin'])->name('admin.catalog.update');
         Route::delete('/catalog/{type}/{definition}', [CatalogController::class, 'destroyAdmin'])->name('admin.catalog.destroy');
     });
