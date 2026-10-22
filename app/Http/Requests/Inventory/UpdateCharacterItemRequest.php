@@ -13,6 +13,9 @@ class UpdateCharacterItemRequest extends FormRequest
 
     public function rules(): array
     {
-        return ['quantity' => ['required', 'integer', 'min:1', 'max:999']];
+        return [
+            'quantity' => ['nullable', 'integer', 'min:1', 'max:999', 'required_without:delta'],
+            'delta' => ['nullable', 'integer', 'between:-999,999', 'prohibits:quantity'],
+        ];
     }
 }

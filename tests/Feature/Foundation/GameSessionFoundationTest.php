@@ -2,9 +2,11 @@
 
 namespace Tests\Feature\Foundation;
 
+use App\Actions\Characters\CreateCharacter;
 use App\Actions\GameSessions\CreateGameSession;
 use App\Actions\GameSessions\RequestGameSessionJoin;
 use App\Models\Character;
+use App\Models\CharacterClassDefinition;
 use App\Models\GameSystemVersion;
 use App\Models\SessionCharacter;
 use App\Models\User;
@@ -23,10 +25,29 @@ class GameSessionFoundationTest extends TestCase
 
         $version = GameSystemVersion::query()->with(['stats', 'slots', 'trays', 'characterClasses'])->sole();
 
-        $this->assertSame(['body', 'mind'], $version->stats->sortBy('display_order')->pluck('key')->all());
-        $this->assertCount(4, $version->slots);
+        $this->assertSame(['body', 'mind', 'attack', 'defend', 'move', 'gold'], $version->stats->sortBy('display_order')->pluck('key')->all());
+        $this->assertSame(['resource', 'resource', 'attribute', 'attribute', 'attribute', 'currency'], $version->stats->sortBy('display_order')->pluck('kind')->values()->all());
+        $this->assertCount(5, $version->slots);
         $this->assertCount(6, $version->trays);
         $this->assertCount(12, $version->characterClasses);
+    }
+
+    public function test_reseeding_backfills_new_stats_onto_existing_characters(): void
+    {
+        $this->seed(HeroQuestGameSystemSeeder::class);
+        $owner = User::factory()->create();
+        $game = app(CreateGameSession::class)->handle($owner, GameSystemVersion::query()->sole(), ['name' => 'Old campaign']);
+        $barbarian = CharacterClassDefinition::query()->where('key', 'barbarian')->value('id');
+        $character = app(CreateCharacter::class)->handle($owner, $game, ['name' => 'Veteran', 'character_class_definition_id' => $barbarian]);
+        // Simulate a character created before Attack/Defend existed.
+        $character->stats()->whereHas('definition', fn ($query) => $query->whereIn('key', ['attack', 'defend']))->delete();
+
+        $this->seed(HeroQuestGameSystemSeeder::class);
+
+        $stats = $character->stats()->with('definition')->get()->mapWithKeys(fn ($stat) => [$stat->definition->key => [$stat->value, $stat->max_value]]);
+        $this->assertSame([1, null], $stats['attack']);
+        $this->assertSame([2, null], $stats['defend']);
+        $this->assertSame([8, 8], $stats['body'], 'Existing values are left alone.');
     }
 
     public function test_creating_a_room_makes_its_owner_an_active_dm(): void

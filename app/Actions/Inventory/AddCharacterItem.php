@@ -6,6 +6,7 @@ use App\Models\Character;
 use App\Models\CharacterItem;
 use App\Models\ItemDefinition;
 use App\Services\CharacterMutation;
+use App\Services\ItemRules;
 use Illuminate\Validation\ValidationException;
 
 class AddCharacterItem
@@ -24,6 +25,16 @@ class AddCharacterItem
 
         if (! $definition && blank($attributes['custom_name'] ?? null)) {
             throw ValidationException::withMessages(['custom_name' => 'Choose an item or provide a custom item name.']);
+        }
+
+        // Consumables stack onto an existing, uncustomised stack instead of creating another row.
+        $stack = $definition && app(ItemRules::class)->rules($definition)['consumable'] && blank($attributes['custom_name'] ?? null)
+            ? $character->items()->where('item_definition_id', $definition->id)->whereNull('custom_name')->orderBy('id')->first()
+            : null;
+        if ($stack) {
+            app(UpdateCharacterItemQuantity::class)->handle($character, $stack, ['delta' => (int) $attributes['quantity']]);
+
+            return $stack->refresh();
         }
 
         return app(CharacterMutation::class)->run($character, 'item.added', 'item', null, fn () => $character->items()->create($attributes));

@@ -43,7 +43,9 @@ class PublicSpectatorTest extends TestCase
             ->where('game.characters.0.name', 'The Wizard')
             ->where('game.characters.0.can_update', false)
             ->where('game.characters.0.note', null)
-            ->has('game.characters.0.trays'));
+            ->has('game.characters.0.stats')
+            ->has('system.layouts.card')
+            ->where('system.catalog', null));
 
         $this->get("/games/{$game->id}/characters/{$character->id}")->assertOk()->assertInertia(fn ($page) => $page
             ->where('character.name', 'The Wizard')

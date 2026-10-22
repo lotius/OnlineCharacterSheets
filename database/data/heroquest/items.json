@@ -1,0 +1,329 @@
+{
+    "definition_type": "items",
+    "notes": "Starter HeroQuest catalog. Costs, dice values and class restrictions are from memory of the 2021 Avalon Hill edition and must be verified against your own rulebooks before relying on them. Descriptions are short paraphrases, not card text. Import format: the same file can be uploaded on the catalog page.",
+    "records": [
+        {
+            "key": "dagger",
+            "name": "Dagger",
+            "icon": "game-icon:broadsword",
+            "description": "A small blade. It can be thrown at an enemy you can see, but is lost once thrown.",
+            "category": "weapon",
+            "cost": 25,
+            "allowed_slots": ["right_hand", "left_hand"],
+            "modifiers": [{ "stat": "attack", "op": "set", "value": 1 }],
+            "tags": ["throwable"]
+        },
+        {
+            "key": "staff",
+            "name": "Staff",
+            "icon": "game-icon:broadsword",
+            "description": "A long wooden staff. Its reach lets you attack diagonally.",
+            "category": "weapon",
+            "cost": 100,
+            "allowed_slots": ["right_hand", "left_hand"],
+            "modifiers": [{ "stat": "attack", "op": "set", "value": 1 }],
+            "tags": ["diagonal"]
+        },
+        {
+            "key": "short_sword",
+            "name": "Shortsword",
+            "icon": "game-icon:broadsword",
+            "description": "A balanced one-handed sword.",
+            "category": "weapon",
+            "cost": 150,
+            "allowed_slots": ["right_hand", "left_hand"],
+            "modifiers": [{ "stat": "attack", "op": "set", "value": 2 }],
+            "exclude_classes": ["wizard"]
+        },
+        {
+            "key": "spear",
+            "name": "Spear",
+            "icon": "game-icon:broadsword",
+            "description": "A long spear that can strike diagonally or be thrown (and is lost once thrown).",
+            "category": "weapon",
+            "cost": 150,
+            "allowed_slots": ["right_hand", "left_hand"],
+            "modifiers": [{ "stat": "attack", "op": "set", "value": 2 }],
+            "tags": ["diagonal", "throwable"],
+            "exclude_classes": ["wizard"]
+        },
+        {
+            "key": "hand_axe",
+            "name": "Hand Axe",
+            "icon": "game-icon:broadsword",
+            "description": "A compact axe that can also be thrown (and is lost once thrown).",
+            "category": "weapon",
+            "cost": 200,
+            "allowed_slots": ["right_hand", "left_hand"],
+            "modifiers": [{ "stat": "attack", "op": "set", "value": 2 }],
+            "tags": ["throwable"],
+            "exclude_classes": ["wizard"]
+        },
+        {
+            "key": "broadsword",
+            "name": "Broadsword",
+            "icon": "game-icon:broadsword",
+            "description": "A heavy, reliable one-handed sword.",
+            "category": "weapon",
+            "cost": 250,
+            "allowed_slots": ["right_hand", "left_hand"],
+            "modifiers": [{ "stat": "attack", "op": "set", "value": 3 }],
+            "exclude_classes": ["wizard"]
+        },
+        {
+            "key": "longsword",
+            "name": "Longsword",
+            "icon": "game-icon:broadsword",
+            "description": "A long blade whose reach lets you attack diagonally.",
+            "category": "weapon",
+            "cost": 350,
+            "allowed_slots": ["right_hand", "left_hand"],
+            "modifiers": [{ "stat": "attack", "op": "set", "value": 3 }],
+            "tags": ["diagonal"],
+            "exclude_classes": ["wizard"]
+        },
+        {
+            "key": "crossbow",
+            "name": "Crossbow",
+            "icon": "game-icon:broadsword",
+            "description": "A ranged weapon for targets in line of sight. It cannot be used against an adjacent monster.",
+            "category": "weapon",
+            "cost": 350,
+            "required_slots": ["right_hand", "left_hand"],
+            "modifiers": [{ "stat": "attack", "op": "set", "value": 3 }],
+            "tags": ["ranged"],
+            "properties": { "Range": "Line of sight, not adjacent" }
+        },
+        {
+            "key": "battle_axe",
+            "name": "Battle Axe",
+            "icon": "game-icon:broadsword",
+            "description": "A heavy two-handed axe. You cannot use a shield with it.",
+            "category": "weapon",
+            "cost": 400,
+            "required_slots": ["right_hand", "left_hand"],
+            "modifiers": [{ "stat": "attack", "op": "set", "value": 4 }],
+            "tags": ["two-handed"],
+            "exclude_classes": ["wizard"]
+        },
+        {
+            "key": "helmet",
+            "name": "Helmet",
+            "icon": "game-icon:helmet",
+            "description": "Protective head armor.",
+            "category": "armor",
+            "cost": 125,
+            "allowed_slots": ["head"],
+            "modifiers": [{ "stat": "defend", "op": "add", "value": 1 }],
+            "exclude_classes": ["wizard"]
+        },
+        {
+            "key": "shield",
+            "name": "Shield",
+            "icon": "game-icon:checked-shield",
+            "description": "A shield carried in one hand. It cannot be used with two-handed weapons.",
+            "category": "armor",
+            "cost": 150,
+            "allowed_slots": ["left_hand", "right_hand"],
+            "modifiers": [{ "stat": "defend", "op": "add", "value": 1 }],
+            "exclude_classes": ["wizard"]
+        },
+        {
+            "key": "bracers",
+            "name": "Bracers",
+            "icon": "game-icon:checked-shield",
+            "description": "Reinforced arm guards.",
+            "category": "armor",
+            "cost": 550,
+            "allowed_slots": ["arms"],
+            "modifiers": [{ "stat": "defend", "op": "add", "value": 1 }]
+        },
+        {
+            "key": "chain_mail",
+            "name": "Chain Mail",
+            "icon": "game-icon:checked-shield",
+            "description": "Interlocking metal rings worn over the body.",
+            "category": "armor",
+            "cost": 500,
+            "allowed_slots": ["body"],
+            "modifiers": [{ "stat": "defend", "op": "add", "value": 1 }],
+            "exclude_classes": ["wizard"]
+        },
+        {
+            "key": "plate_mail",
+            "name": "Plate Mail",
+            "icon": "game-icon:checked-shield",
+            "description": "Heavy full plate. Excellent protection, but you move with only one die.",
+            "category": "armor",
+            "cost": 850,
+            "allowed_slots": ["body"],
+            "modifiers": [
+                { "stat": "defend", "op": "add", "value": 2 },
+                { "stat": "move", "op": "set", "value": 1 }
+            ],
+            "exclude_classes": ["wizard"]
+        },
+        {
+            "key": "tool_kit",
+            "name": "Tool Kit",
+            "icon": null,
+            "description": "Lets a hero attempt to disarm a known trap.",
+            "category": "tool",
+            "cost": 250
+        },
+
+        {
+            "key": "healing_potion",
+            "name": "Potion of Healing",
+            "icon": "game-icon:potion-ball",
+            "description": "Drink to restore lost Body Points.",
+            "category": "potion",
+            "consumable": true
+        },
+        {
+            "key": "potion_of_strength",
+            "name": "Potion of Strength",
+            "icon": "game-icon:potion-ball",
+            "description": "Drink to roll extra combat dice on your next attack.",
+            "category": "potion",
+            "consumable": true
+        },
+        {
+            "key": "potion_of_defense",
+            "name": "Potion of Defense",
+            "icon": "game-icon:potion-ball",
+            "description": "Drink to roll extra combat dice the next time you defend.",
+            "category": "potion",
+            "consumable": true
+        },
+        {
+            "key": "potion_of_speed",
+            "name": "Potion of Speed",
+            "icon": "game-icon:potion-ball",
+            "description": "Drink to roll extra dice for your next move.",
+            "category": "potion",
+            "consumable": true
+        },
+        {
+            "key": "heroic_brew",
+            "name": "Heroic Brew",
+            "icon": "game-icon:potion-ball",
+            "description": "Drink to attack twice on your next turn.",
+            "category": "potion",
+            "consumable": true
+        },
+        {
+            "key": "holy_water",
+            "name": "Holy Water",
+            "icon": "game-icon:potion-ball",
+            "description": "Thrown or used against undead to destroy them.",
+            "category": "potion",
+            "consumable": true
+        },
+
+        {
+            "key": "borins_armor",
+            "name": "Borin's Armor",
+            "icon": "game-icon:checked-shield",
+            "description": "Legendary plate armor that does not slow its wearer.",
+            "category": "artifact",
+            "allowed_slots": ["body"],
+            "modifiers": [{ "stat": "defend", "op": "add", "value": 2 }],
+            "exclude_classes": ["wizard"]
+        },
+        {
+            "key": "orcs_bane",
+            "name": "Orc's Bane",
+            "icon": "game-icon:broadsword",
+            "description": "An enchanted shortsword with a special power against orcs.",
+            "category": "artifact",
+            "allowed_slots": ["right_hand", "left_hand"],
+            "modifiers": [{ "stat": "attack", "op": "set", "value": 2 }],
+            "exclude_classes": ["wizard"]
+        },
+        {
+            "key": "spirit_blade",
+            "name": "Spirit Blade",
+            "icon": "game-icon:broadsword",
+            "description": "An enchanted blade that is especially effective against the undead.",
+            "category": "artifact",
+            "allowed_slots": ["right_hand", "left_hand"],
+            "modifiers": [{ "stat": "attack", "op": "set", "value": 3 }]
+        },
+        {
+            "key": "wizards_staff",
+            "name": "Wizard's Staff",
+            "icon": "game-icon:broadsword",
+            "description": "A magical staff usable only by a wizard. It can strike diagonally.",
+            "category": "artifact",
+            "allowed_slots": ["right_hand", "left_hand"],
+            "modifiers": [{ "stat": "attack", "op": "set", "value": 2 }],
+            "tags": ["diagonal"],
+            "only_classes": ["wizard"]
+        },
+        {
+            "key": "wizards_cloak",
+            "name": "Wizard's Cloak",
+            "icon": null,
+            "description": "A cloak woven with protective magic, usable only by a wizard.",
+            "category": "artifact",
+            "allowed_slots": ["body"],
+            "modifiers": [{ "stat": "defend", "op": "add", "value": 1 }],
+            "only_classes": ["wizard"]
+        },
+        {
+            "key": "talisman_of_lore",
+            "name": "Talisman of Lore",
+            "icon": null,
+            "description": "An amulet that strengthens the wearer's mind.",
+            "category": "artifact"
+        },
+        {
+            "key": "wand_of_magic",
+            "name": "Wand of Magic",
+            "icon": null,
+            "description": "Lets a spellcaster cast more than one spell in a turn.",
+            "category": "artifact"
+        },
+        {
+            "key": "ring_of_return",
+            "name": "Ring of Return",
+            "icon": null,
+            "description": "Returns the heroes to safety. Usable once.",
+            "category": "artifact",
+            "consumable": true
+        },
+        {
+            "key": "elixir_of_life",
+            "name": "Elixir of Life",
+            "icon": "game-icon:potion-ball",
+            "description": "Restores a fallen hero. Usable once.",
+            "category": "artifact",
+            "consumable": true
+        },
+
+        {
+            "key": "rapier",
+            "name": "Rapier",
+            "icon": "game-icon:broadsword",
+            "description": "A light sword suited to a swashbuckling hero.",
+            "category": "weapon",
+            "allowed_slots": ["right_hand", "left_hand"],
+            "modifiers": [{ "stat": "attack", "op": "set", "value": 2 }]
+        },
+        {
+            "key": "wand",
+            "name": "Wand",
+            "icon": null,
+            "description": "A focus for arcane power.",
+            "category": "tool"
+        },
+        {
+            "key": "bandolier",
+            "name": "Bandolier",
+            "icon": null,
+            "description": "A convenient belt for carrying a rogue's tools.",
+            "category": "tool"
+        }
+    ]
+}

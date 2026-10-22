@@ -12,6 +12,43 @@ The application will later integrate with **HQForge** through a stable internal/
 
 ---
 
+## 0.1 Design revision — 2026-10-21 (supersedes conflicting details below)
+
+The owner's priorities, in order: **instantly responsive, touch-first, compact sheets**; **configurable sheet display**; **customizable stream overlays**; **customizable stats/items so HeroQuest is data, not code**. HQForge integration, campaigns and snapshots are deferred until those are solid. Where later sections conflict with this one, this one wins.
+
+### Instant-feel synchronization (replaces "ping then reload the whole room")
+
+- Mutations accept **deltas** (`PATCH /characters/{c}/stats/{s}` with `delta`, `value` or `max_value`; items with `delta` or `quantity`). Deltas are applied to the locked current row and clamped, so concurrent taps never overwrite each other.
+- Every character mutation bumps `characters.revision`. JSON requests receive `{character, warnings}` (`Controller::characterResponse`); classic form posts still redirect.
+- The client store (`resources/js/sheet/store.ts`) applies operations optimistically, queues requests **per character in order**, and accepts server snapshots only when their revision is not older. Equip shows a busy state instead of guessing (server rules pick slots).
+- `RoomRealtimePinged` carries `character_id` + `character_revision`. Clients (`resources/js/sheet/liveSync.ts`, decision logic in `syncDecision.ts`) refresh just that character for the next revision, skip the fetch when their own response already brought it, and reload page props only on gaps or room-level changes.
+- Read paths (`RoomState`) no longer take `lockForUpdate`; a transaction's snapshot is consistent without blocking writers.
+
+### Stat kinds and derived stats
+
+- `stat_definitions.kind`: `resource` (current/max, e.g. Body), `attribute` (single value items modify, e.g. Attack/Defend/Move), `currency` (e.g. Gold). Gold is a currency stat; the old `characters.gold` column is gone.
+- Item `modifiers` (`{stat, op: set|add, value, when: equipped|carried}`) produce effective values on the client (`resources/js/sheet/derive.ts`): the highest `set` replaces the base, `add`s stack; for resources they raise the maximum.
+
+### Item rules schema (`App\Services\ItemRules`)
+
+Stored in item definition `configuration`, validated on catalog save/import: `category`, `cost`, `modifiers`, `allowed_slots` (preference order, one of), `required_slots` (all at once — two-handed), `exclude_classes`, `only_classes`, `consumable`, `tags`, `properties`. The system version's `configuration.rules_mode` (`tracker` | `warn` | `enforce`) controls class restrictions. Equipping swaps out whatever is in the target slot(s) as separate audited events. Consumables stack on add and "Use" removes one. The `is_active` item flag was removed.
+
+### Sheet layouts and shared blocks (`App\Services\SheetLayouts`)
+
+- A layout is an ordered list of blocks: `stats`, `equipment`, `items` (category / exclude_categories), `abilities` (spells|skills), `notes`, each with `title` and `collapsed`.
+- Two layouts per room: `sheet` (phone sheet) and `card` (room grid). Resolution: room `settings.layouts` → version `configuration.layouts` → generated from tray definitions.
+- One renderer (`components/sheet/SheetRenderer.vue`) draws every surface: phone sheet, room cards and overlay hero cards. Players can change density and collapse or hide blocks per device (`sheet/prefs.ts`); the DM edits room layouts in Setup.
+
+### Overlays (implemented)
+
+`stream_overlays` belong to a room and hold a versioned JSON layout of absolutely positioned elements (`text, name, class, player, portrait, stat, item-count, equipped, turn-marker, box, image, hero-card`) bound to hero slots (turn order unless mapped), the current hero, or nothing, with `show` conditions (always/occupied/empty/current/not-current) and named animations. Tokens are stored hashed (lookup) and encrypted (so the DM can re-copy the URL); rotating issues a new URL and channel. Presets: hero column (HeroQuestFans-style), hero card row, current hero card, blank. Designer at `/games/{g}/overlays/{o}/edit` with live/sample data, drag/resize/snap, inspector, hero-slot mapping and local undo/redo.
+
+### HeroQuest content
+
+`database/data/heroquest/*.json` uses the catalog import format and is loaded by the seeder. Values were entered from memory and must be verified against the rulebooks. Re-running the seeder backfills new stats onto existing characters.
+
+---
+
 # 1. Core Product Goals
 
 The application must ultimately support all of the following:
@@ -2995,9 +3032,12 @@ Codex should maintain this list during implementation.
 | --- | --- | --- | --- |
 | 1 — Foundation | Two authenticated users can join a room and the DM can assign a character. | Authentication, generic game definitions, room creation/join approval, characters, stats, assignment, policies, MariaDB, Reverb/Echo connectivity, and permission tests are complete. | Complete |
 | 2 — Functional Character Sheets | A player can use a phone to manage their assigned character. | Generic inventory and custom items, equipment slots, spells, skills, notes, configured trays, and a responsive personal sheet are complete with authorization tests. | Complete |
-| 3 — Game Control | Turns, revisioning, event log, and undo. | Turn controls/highlights, atomic turn revisions, append-only turn history, and compensating turn undo implemented. Other mutations and order editing remain. | In progress |
-| 4 — Realtime | Live domain mutations with reconnect/resync. | Transport and channel authorization are proven; domain broadcasts and resync remain. | Partially prepared |
-| 5–10 | Viewing, theme/assets, overlays, and HQForge-ready API. | Not started beyond foundational extension points. | Planned |
+| 3 — Game Control | Turns, revisioning, event log, and undo. | Turn controls, order editing, atomic revisions, append-only audit of character/room mutations and compensating undo are implemented. | Complete |
+| 4 — Realtime | Live domain mutations with reconnect/resync. | Optimistic client store, per-character targeted refresh, revision-gap resync and reconnect checks (see §0.1). | Complete |
+| 5 — Viewing | Public spectator view without private data. | Public rooms and sheets via allowlisted presenters. | Complete |
+| 6 — Theme & assets | Themed sheets, icons, assets. | HeroQuest-style CSS, local game-icons subset, portrait uploads. No theme abstraction or asset manager page yet. | Partial |
+| 7–9 — Overlays | Renderer, designer, advanced overlay. | Token URLs, renderer, presets, designer, bindings, hero slots, conditions, animations (see §0.1). No repeater element or server-side layout revisions. | Mostly complete |
+| 10 — HQForge API | Normalized API with Sanctum. | Deferred by owner priority. | Planned |
 
 ### 2026-08-30 — Foundation schema and local environment
 
@@ -3079,6 +3119,12 @@ Codex should maintain this list during implementation.
 - Existing non-turn mutations still use the earlier revision/broadcast implementation; broad audit/undo coverage, editable order, and dedicated domain event contracts remain unfinished.
 - Verification: migration applied locally; 6 turn tests pass (53 assertions); frontend lint, Vue TypeScript, production build, and PHP formatting pass. Full suite: 57/59 pass; two existing inventory tests assume no starting equipment. Repository-wide PHP static analysis remains failing on existing model/type issues.
 
+### 2026-10-21 — Claude: instant feel, item rules, sheet layouts, overlays
+
+- See §0.1 for the design. Step-by-step log and file list: `docs/OVERHAUL_PROGRESS.md`.
+- Verification: 84 PHP tests passing; frontend unit tests (sync decisions, derived stats); lint, format, Vue TypeScript and production build passing; a headless-browser smoke test covered phone sheet taps, equip/use/add, gold pad, DM turn control, setup/history tabs, overlay designer and OBS renderer with no console errors.
+- PHPStan still reports the pre-existing model-property typing issues (models lack `@property` annotations).
+
 ```text
 [x] Project bootstrap
 [x] Authentication
@@ -3102,41 +3148,43 @@ Codex should maintain this list during implementation.
 [x] Skills
 [x] Character sheet components
 [x] Responsive personal sheet
-[ ] Turn order
+[x] Turn order
 [x] Current character highlight
-[ ] Game event log
-[ ] Revision system
-[ ] Undo
-[ ] Reverb broadcasts
-[ ] Vue realtime store
-[ ] Reconnect/resync
-[ ] Public watch page
-[ ] Role-filtered API resources
-[ ] Asset library
-[ ] Local game-icons catalog
+[x] Game event log
+[x] Revision system
+[x] Undo
+[x] Sheet layouts (blocks, room/system/default resolution, layout editor)
+[x] Item rules, derived stats, stat kinds
+[x] Reverb broadcasts (data-free notices + targeted refresh)
+[x] Vue realtime store (optimistic, per-character ordered queue)
+[x] Reconnect/resync
+[x] Public watch page
+[x] Role-filtered presenters (CharacterPresenter + PublicGameState allowlists)
+[~] Asset library (portrait uploads + /media; no manager page)
+[~] Local game-icons catalog (4 icons; extend config/icons.php + public/icons)
 [ ] Theme abstraction
-[ ] HeroQuest-style theme
+[~] HeroQuest-style theme (CSS only)
 [ ] Campaign model
 [ ] Snapshots
-[ ] Overlay model
-[ ] Overlay/session assignment
-[ ] Overlay token generation/revocation
-[ ] Overlay state endpoint
-[ ] Transparent overlay renderer
-[ ] Overlay realtime updates
-[ ] Overlay canvas editor
-[ ] Element palette
-[ ] Property inspector
-[ ] Binding system
-[ ] Sample/live preview mode
-[ ] Hero-slot mappings
+[x] Overlay model
+[x] Overlay/session assignment (overlays belong to a room)
+[x] Overlay token generation/revocation
+[x] Overlay state endpoint
+[x] Transparent overlay renderer
+[x] Overlay realtime updates
+[x] Overlay canvas editor
+[x] Element palette
+[x] Property inspector
+[x] Binding system
+[x] Sample/live preview mode
+[x] Hero-slot mappings
 [ ] Repeater/group element
-[ ] Empty-slot placeholder conditions
-[ ] Conditional visibility
-[ ] Update animations
-[ ] Overlay revisions
-[ ] Overlay templates
-[ ] HeroQuestFans-style sample overlay
+[x] Empty-slot placeholder conditions
+[~] Conditional visibility (presence/turn conditions; no stat thresholds yet)
+[x] Update animations
+[~] Overlay revisions (designer undo/redo only; no stored history)
+[~] Overlay templates (built-in presets)
+[x] HeroQuestFans-style sample overlay (hero-column preset)
 [ ] Sanctum integration API
 [ ] API/event documentation
 [ ] Security review

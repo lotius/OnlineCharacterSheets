@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Asset;
+use Illuminate\Support\Str;
 
 class IconLibrary
 {
@@ -25,7 +26,7 @@ class IconLibrary
         if (str_starts_with($key, 'asset:')) {
             $id = substr($key, 6);
 
-            return \Illuminate\Support\Str::isUuid($id) ? '/media/'.$id : null;
+            return Str::isUuid($id) ? '/media/'.$id : null;
         }
 
         return preg_match('#^catalog-icons/[a-zA-Z0-9/_.-]+$#D', $key) && ! str_contains($key, '..') ? '/storage/'.$key : null;

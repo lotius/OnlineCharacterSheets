@@ -2,12 +2,14 @@
 
 namespace App\Actions\Characters;
 
+use App\Actions\Inventory\EquipCharacterItem;
 use App\Models\Character;
 use App\Models\CharacterClassDefinition;
 use App\Models\GameSession;
 use App\Models\ItemDefinition;
 use App\Models\StatDefinition;
 use App\Models\User;
+use App\Services\ItemRules;
 use App\Services\RoomMutation;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -42,11 +44,12 @@ class CreateCharacter
             $classStats = $class?->configuration['default_stats'] ?? [];
 
             foreach (StatDefinition::query()->availableToUser($session->owner)->where('game_system_version_id', $session->game_system_version_id)->orderBy('display_order')->get() as $definition) {
-                $value = $classStats[$definition->key] ?? $definition->default_value;
+                $value = $classStats[$definition->key] ?? $definition->default_value ?? 0;
                 $character->stats()->create([
                     'stat_definition_id' => $definition->id,
                     'value' => $value,
-                    'max_value' => $classStats[$definition->key] ?? $definition->default_max_value,
+                    // Only resources (Body, Mind) track a maximum; attributes and currencies are single values.
+                    'max_value' => ($definition->kind ?? 'resource') === 'resource' ? ($classStats[$definition->key] ?? $definition->default_max_value) : null,
                 ]);
             }
 
@@ -60,12 +63,29 @@ class CreateCharacter
                 ->get()
                 ->keyBy('key');
 
+            $equip = app(EquipCharacterItem::class);
             foreach ($startingEquipment as $key) {
                 if ($definition = $equipmentDefinitions->get($key)) {
-                    $character->items()->create([
+                    $item = $character->items()->create([
                         'item_definition_id' => $definition->id,
                         'quantity' => 1,
                     ]);
+                    // Starting gear goes straight into a free slot so derived stats (Attack, Defend) are right from the start.
+                    $rules = app(ItemRules::class)->rules($definition);
+                    if ($rules['allowed_slots'] === [] && $rules['required_slots'] === []) {
+                        continue;
+                    }
+                    try {
+                        $slots = $equip->targets($character, $item, null);
+                    } catch (ValidationException) {
+                        continue;
+                    }
+                    $free = $slots->every(fn ($slot) => $slot->capacity > $character->items()->where('id', '!=', $item->id)->whereHas('slots', fn ($query) => $query->where('slot_definition_id', $slot->id))->count());
+                    if ($free) {
+                        foreach ($slots as $slot) {
+                            $item->slots()->create(['slot_definition_id' => $slot->id]);
+                        }
+                    }
                 }
             }
 

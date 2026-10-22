@@ -42,4 +42,9 @@ class GameSession extends Model
     {
         return $this->hasMany(GameSessionViewer::class);
     }
+
+    public function overlays(): HasMany
+    {
+        return $this->hasMany(StreamOverlay::class);
+    }
 }

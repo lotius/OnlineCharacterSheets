@@ -7,6 +7,7 @@ use App\Actions\GameSessions\CreateGameSession;
 use App\Events\RoomRealtimePinged;
 use App\Models\Character;
 use App\Models\CharacterClassDefinition;
+use App\Models\GameEvent;
 use App\Models\GameSession;
 use App\Models\GameSystemVersion;
 use App\Models\ItemDefinition;
@@ -46,24 +47,23 @@ class FunctionalCharacterSheetTest extends TestCase
         $this->assertTrue($owner->exists && $game->exists);
     }
 
-    public function test_assigned_player_can_mark_an_inventory_item_as_active(): void
+    public function test_using_a_consumable_removes_one_and_the_last_use_removes_the_stack(): void
     {
         Event::fake([RoomRealtimePinged::class]);
         [, $player, , $character] = $this->assignedCharacter();
-        $definition = ItemDefinition::query()->where('key', 'healing_potion')->sole();
-        $item = $character->items()->create([
-            'item_definition_id' => $definition->id,
-            'quantity' => 1,
-        ]);
+        $potion = ItemDefinition::query()->where('key', 'healing_potion')->sole();
+        $this->actingAs($player)->post("/characters/{$character->id}/items", ['item_definition_id' => $potion->id, 'quantity' => 1]);
+        $this->actingAs($player)->post("/characters/{$character->id}/items", ['item_definition_id' => $potion->id, 'quantity' => 1]);
+        $stack = $character->items()->where('item_definition_id', $potion->id)->sole();
+        $this->assertSame(2, $stack->quantity, 'Consumables stack instead of creating a second row.');
 
-        $this->actingAs($player)
-            ->patch("/characters/{$character->id}/items/{$item->id}/active", ['is_active' => true])
-            ->assertRedirect();
-
-        $this->assertTrue($item->refresh()->is_active);
+        $this->actingAs($player)->postJson("/characters/{$character->id}/items/{$stack->id}/use")->assertOk()
+            ->assertJsonPath('character.items.1.quantity', 1);
+        $this->actingAs($player)->postJson("/characters/{$character->id}/items/{$stack->id}/use")->assertOk();
+        $this->assertDatabaseMissing('character_items', ['id' => $stack->id]);
     }
 
-    public function test_equipment_slot_capacity_is_enforced(): void
+    public function test_equipping_into_a_full_slot_swaps_the_previous_item_out(): void
     {
         [, $player, , $character] = $this->assignedCharacter();
         $leftHand = SlotDefinition::query()->where('key', 'left_hand')->sole();
@@ -71,11 +71,23 @@ class FunctionalCharacterSheetTest extends TestCase
             $definition = ItemDefinition::query()->where('key', $key)->sole();
             $this->actingAs($player)->post("/characters/{$character->id}/items", ['item_definition_id' => $definition->id, 'quantity' => 1]);
         }
-        [$sword, $shield] = $character->items()->orderBy('id')->get()->all();
+        [$sword, $shield] = $character->items()->whereHas('definition', fn ($query) => $query->whereIn('key', ['broadsword', 'shield']))->orderBy('id')->get()->all();
 
-        $this->actingAs($player)->put("/characters/{$character->id}/items/{$sword->id}/slots/{$leftHand->id}");
-        $this->actingAs($player)->put("/characters/{$character->id}/items/{$shield->id}/slots/{$leftHand->id}")->assertSessionHasErrors('slot');
-        $this->assertSame(1, DB::table('character_item_slots')->where('slot_definition_id', $leftHand->id)->count());
+        $this->actingAs($player)->put("/characters/{$character->id}/items/{$sword->id}/slots/{$leftHand->id}")->assertSessionHasNoErrors();
+        $this->actingAs($player)->put("/characters/{$character->id}/items/{$shield->id}/slots/{$leftHand->id}")->assertSessionHasNoErrors();
+        $this->assertSame([$shield->id], DB::table('character_item_slots')->where('slot_definition_id', $leftHand->id)->pluck('character_item_id')->all());
+        $this->assertSame(['item.unequipped', 'item.equipped'], GameEvent::query()->latest('id')->limit(2)->pluck('event_type')->reverse()->values()->all());
+    }
+
+    public function test_slot_rules_reject_items_in_the_wrong_slot(): void
+    {
+        [, $player, , $character] = $this->assignedCharacter();
+        $helmet = ItemDefinition::query()->where('key', 'helmet')->sole();
+        $this->actingAs($player)->post("/characters/{$character->id}/items", ['item_definition_id' => $helmet->id, 'quantity' => 1]);
+        $item = $character->items()->where('item_definition_id', $helmet->id)->sole();
+        $body = SlotDefinition::query()->where('key', 'body')->sole();
+
+        $this->actingAs($player)->put("/characters/{$character->id}/items/{$item->id}/slots/{$body->id}")->assertSessionHasErrors('slot');
     }
 
     public function test_assigned_player_can_add_and_exhaust_spells_and_skills(): void
@@ -95,20 +107,16 @@ class FunctionalCharacterSheetTest extends TestCase
         $this->assertTrue($ownedSkill->refresh()->is_used);
     }
 
-    public function test_assigned_player_can_maintain_character_gold(): void
+    public function test_assigned_player_can_adjust_gold_with_deltas_clamped_at_zero(): void
     {
         [, $player, , $character] = $this->assignedCharacter();
+        $gold = $character->stats()->whereHas('definition', fn ($query) => $query->where('key', 'gold'))->sole();
 
-        $this->actingAs($player)
-            ->patch("/characters/{$character->id}/gold", ['gold' => 125])
-            ->assertRedirect()
-            ->assertSessionDoesntHaveErrors();
-
-        $this->assertSame(125, $character->refresh()->gold);
-
-        $this->actingAs($player)
-            ->patch("/characters/{$character->id}/gold", ['gold' => -1])
-            ->assertSessionHasErrors('gold');
+        $this->actingAs($player)->patchJson("/characters/{$character->id}/stats/{$gold->id}", ['delta' => 125])->assertOk()
+            ->assertJsonPath('character.revision', 1);
+        $this->actingAs($player)->patchJson("/characters/{$character->id}/stats/{$gold->id}", ['delta' => -200])->assertOk();
+        $this->assertSame(0, $gold->refresh()->value);
+        $this->actingAs($player)->patch("/characters/{$character->id}/stats/{$gold->id}", ['value' => -1])->assertSessionHasErrors('value');
     }
 
     public function test_private_notes_are_visible_to_controller_but_filtered_from_other_members(): void
@@ -134,7 +142,8 @@ class FunctionalCharacterSheetTest extends TestCase
 
         $initialItems = $character->items()->count();
         $this->actingAs($outsider)->post("/characters/{$character->id}/items", ['item_definition_id' => $sword->id, 'quantity' => 1])->assertForbidden();
-        $this->actingAs($outsider)->patch("/characters/{$character->id}/gold", ['gold' => 100])->assertForbidden();
+        $gold = $character->stats()->whereHas('definition', fn ($query) => $query->where('key', 'gold'))->sole();
+        $this->actingAs($outsider)->patch("/characters/{$character->id}/stats/{$gold->id}", ['value' => 100])->assertForbidden();
         $this->assertDatabaseCount('character_items', $initialItems);
     }
 

@@ -91,6 +91,7 @@ class CharacterMutation
     private function record(Collection $rooms, Character $character, string $eventType, string $entityType, int $entityId, array $before, array $after, ?int $actorId, ?string $undoMutation = null): void
     {
         $mutationId = (string) Str::uuid();
+        $character->increment('revision');
         foreach ($rooms as $room) {
             $original = $undoMutation ? GameEvent::query()->where('game_session_id', $room->id)->where('mutation_id', $undoMutation)->first() : null;
             $room->increment('current_revision');
@@ -101,7 +102,7 @@ class CharacterMutation
                 'mutation_id' => $mutationId, 'is_undoable' => $undoMutation === null,
                 'before_state' => $before, 'after_state' => $after, 'undoes_event_id' => $original?->id,
             ]);
-            DB::afterCommit(fn () => RoomRealtimePinged::dispatch($room));
+            DB::afterCommit(fn () => RoomRealtimePinged::dispatch($room, false, $character->id, $character->revision));
         }
     }
 }

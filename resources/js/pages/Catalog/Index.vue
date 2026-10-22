@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import AppHeader from '@/components/AppHeader.vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { computed, reactive, ref } from 'vue';
 
 type Definition = Record<string, unknown> & {
     id: number;
@@ -42,6 +42,7 @@ const form = useForm({
     icon_upload: null as File | null,
     display_order: 0,
     data_type: 'integer',
+    kind: 'resource',
     default_value: null as number | string | boolean | null,
     default_max_value: null as number | null,
     minimum_value: null as number | null,
@@ -51,7 +52,6 @@ const form = useForm({
     is_collapsible: true,
     default_open: true,
     default_stats_json: '',
-    required_slots_json: '',
     charges: null as number | null,
     category: '',
     configuration_json: '',
@@ -80,8 +80,61 @@ const canHaveIcon = computed(() =>
         activeType.value,
     ),
 );
-const iconUrl = (icon?: string | null) =>
-    icon ? (icon.startsWith('http') ? icon : `/storage/${icon}`) : null;
+const iconUrl = (definition: Definition) =>
+    (definition.icon_url as string | null | undefined) ?? null;
+
+// Structured item rules (see App\Services\ItemRules); anything else stays in the extra JSON.
+type Modifier = {
+    stat: string;
+    op: 'add' | 'set';
+    value: number;
+    when: 'equipped' | 'carried';
+};
+const RULE_KEYS = [
+    'category',
+    'cost',
+    'consumable',
+    'allowed_slots',
+    'required_slots',
+    'modifiers',
+    'exclude_classes',
+    'tags',
+];
+const rules = reactive({
+    cost: null as number | null,
+    consumable: false,
+    slotMode: 'none' as 'none' | 'one' | 'all',
+    slots: [] as string[],
+    modifiers: [] as Modifier[],
+    excludeClasses: [] as string[],
+    tags: '',
+});
+const keysOf = (type: string) =>
+    (props.groups[type]?.definitions ?? []).map((definition) => ({
+        key: definition.key,
+        name: definition.name,
+    }));
+const toggle = (list: string[], value: string) => {
+    const index = list.indexOf(value);
+    if (index === -1) list.push(value);
+    else list.splice(index, 1);
+};
+const loadRules = (config: Record<string, unknown>) => {
+    const allowed = (config.allowed_slots as string[] | undefined) ?? [];
+    const required = (config.required_slots as string[] | undefined) ?? [];
+    rules.cost = typeof config.cost === 'number' ? config.cost : null;
+    rules.consumable = config.consumable === true;
+    rules.slotMode = required.length ? 'all' : allowed.length ? 'one' : 'none';
+    rules.slots = [...(required.length ? required : allowed)];
+    rules.modifiers = ((config.modifiers as Modifier[] | undefined) ?? []).map(
+        (modifier) => ({ ...modifier, when: modifier.when ?? 'equipped' }),
+    );
+    rules.excludeClasses = [
+        ...((config.exclude_classes as string[] | undefined) ?? []),
+    ];
+    rules.tags = ((config.tags as string[] | undefined) ?? []).join(', ');
+};
+const resetRules = () => loadRules({});
 
 const safeJson = (value: string, fallback: unknown = {}) => {
     if (!value.trim()) return fallback;
@@ -106,13 +159,44 @@ const configurationForSave = () => {
     }
 
     if (activeType.value === 'items') {
-        config.required_slots = safeJson(form.required_slots_json, []);
+        for (const key of RULE_KEYS) delete config[key];
         if (form.category) config.category = form.category;
+        if (rules.cost !== null && (rules.cost as unknown) !== '')
+            config.cost = rules.cost;
+        if (rules.consumable) config.consumable = true;
+        if (rules.slotMode === 'one' && rules.slots.length)
+            config.allowed_slots = rules.slots;
+        if (rules.slotMode === 'all' && rules.slots.length)
+            config.required_slots = rules.slots;
+        const modifiers = rules.modifiers
+            .filter((modifier) => modifier.stat)
+            .map((modifier) => ({
+                ...modifier,
+                value: Number(modifier.value),
+            }));
+        if (modifiers.length)
+            config.modifiers = modifiers.map(({ when, ...modifier }) =>
+                when === 'carried' ? { ...modifier, when } : modifier,
+            );
+        if (rules.excludeClasses.length)
+            config.exclude_classes = rules.excludeClasses;
+        const tags = rules.tags
+            .split(',')
+            .map((tag) =>
+                tag
+                    .trim()
+                    .toLowerCase()
+                    .replace(/[^a-z0-9_-]+/g, '-'),
+            )
+            .filter(Boolean);
+        if (tags.length) config.tags = tags;
     }
 
     if (['spells', 'skills'].includes(activeType.value)) {
+        delete config.category;
         if (form.charges !== null) config.charges = form.charges;
-        if (form.category) config.category = form.category;
+        if (form.category) config.group = form.category;
+        else delete config.group;
     }
 
     return JSON.stringify(config, null, 2);
@@ -122,6 +206,7 @@ const reset = () => {
     editing.value = null;
     form.reset();
     form.clearErrors();
+    resetRules();
 };
 
 const edit = (definition: Definition) => {
@@ -141,13 +226,28 @@ const edit = (definition: Definition) => {
         null,
         2,
     );
-    form.required_slots_json = JSON.stringify(
-        config.required_slots || [],
-        null,
-        2,
-    );
     form.charges = typeof config.charges === 'number' ? config.charges : null;
-    form.category = typeof config.category === 'string' ? config.category : '';
+    form.category =
+        typeof config.category === 'string'
+            ? config.category
+            : typeof config.group === 'string'
+              ? config.group
+              : '';
+    loadRules(config);
+    // Rule fields are edited above; keep only the remaining keys in the extra JSON box.
+    const extra = Object.fromEntries(
+        Object.entries(config).filter(
+            ([key]) =>
+                !(
+                    activeType.value === 'items'
+                        ? RULE_KEYS
+                        : ['category', 'group', 'charges', 'default_stats']
+                ).includes(key),
+        ),
+    );
+    form.configuration_json = Object.keys(extra).length
+        ? JSON.stringify(extra, null, 2)
+        : '';
 };
 
 const save = () => {
@@ -289,8 +389,8 @@ const importCatalog = () => {
                         >
                             <div class="flex min-w-0 items-start gap-3">
                                 <img
-                                    v-if="iconUrl(definition.icon)"
-                                    :src="iconUrl(definition.icon) || undefined"
+                                    v-if="iconUrl(definition)"
+                                    :src="iconUrl(definition) || undefined"
                                     :alt="`${definition.name} icon`"
                                     class="size-10 shrink-0 object-contain"
                                 />
@@ -443,6 +543,23 @@ const importCatalog = () => {
                             class="space-y-3"
                         >
                             <label class="block text-sm text-stone-300"
+                                >Kind<select
+                                    v-model="form.kind"
+                                    class="mt-1 w-full border border-stone-700 bg-stone-950 p-3"
+                                >
+                                    <option value="resource">
+                                        Resource (current / max, e.g. Body)
+                                    </option>
+                                    <option value="attribute">
+                                        Attribute (items can modify, e.g.
+                                        Attack)
+                                    </option>
+                                    <option value="currency">
+                                        Currency (e.g. Gold)
+                                    </option>
+                                </select></label
+                            >
+                            <label class="block text-sm text-stone-300"
                                 >Data type<select
                                     v-model="form.data_type"
                                     class="mt-1 w-full border border-stone-700 bg-stone-950 p-3"
@@ -540,21 +657,206 @@ const importCatalog = () => {
                             class="space-y-3"
                         >
                             <label class="block text-sm text-stone-300"
-                                >Category<input
+                                >{{
+                                    activeType === 'items'
+                                        ? 'Category'
+                                        : 'Group'
+                                }}<input
                                     v-model="form.category"
-                                    placeholder="weapon, armor, air, fire..."
+                                    :placeholder="
+                                        activeType === 'items'
+                                            ? 'weapon, armor, potion, artifact…'
+                                            : 'Air, Earth, Fire, Water…'
+                                    "
                                     class="mt-1 w-full border border-stone-700 bg-stone-950 p-3"
                             /></label>
-                            <label
-                                v-if="activeType === 'items'"
-                                class="block text-sm text-stone-300"
-                                >Required slots JSON<textarea
-                                    v-model="form.required_slots_json"
-                                    rows="3"
-                                    placeholder='["left_hand", "right_hand"]'
-                                    class="mt-1 w-full border border-stone-700 bg-stone-950 p-3 font-mono text-xs"
-                                />
-                            </label>
+                            <template v-if="activeType === 'items'">
+                                <div class="grid grid-cols-2 gap-3">
+                                    <label class="block text-sm text-stone-300"
+                                        >Cost (gold)<input
+                                            v-model.number="rules.cost"
+                                            type="number"
+                                            min="0"
+                                            class="mt-1 w-full border border-stone-700 bg-stone-950 p-3"
+                                    /></label>
+                                    <label
+                                        class="mt-6 flex items-center gap-2 text-sm text-stone-300"
+                                    >
+                                        <input
+                                            v-model="rules.consumable"
+                                            type="checkbox"
+                                        />
+                                        Consumable (“Use” removes one)
+                                    </label>
+                                </div>
+                                <fieldset
+                                    class="space-y-2 text-sm text-stone-300"
+                                >
+                                    <legend>Equipping</legend>
+                                    <select
+                                        v-model="rules.slotMode"
+                                        class="w-full border border-stone-700 bg-stone-950 p-3"
+                                    >
+                                        <option value="none">
+                                            Not equippable (carried only)
+                                        </option>
+                                        <option value="one">
+                                            Goes in one of the checked slots
+                                            (first = preferred)
+                                        </option>
+                                        <option value="all">
+                                            Occupies all checked slots
+                                            (two-handed)
+                                        </option>
+                                    </select>
+                                    <div
+                                        v-if="rules.slotMode !== 'none'"
+                                        class="flex flex-wrap gap-x-4 gap-y-1"
+                                    >
+                                        <label
+                                            v-for="slot in keysOf('slots')"
+                                            :key="slot.key"
+                                            class="flex items-center gap-1"
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                :checked="
+                                                    rules.slots.includes(
+                                                        slot.key,
+                                                    )
+                                                "
+                                                @change="
+                                                    toggle(
+                                                        rules.slots,
+                                                        slot.key,
+                                                    )
+                                                "
+                                            />
+                                            {{ slot.name }}
+                                        </label>
+                                    </div>
+                                </fieldset>
+                                <fieldset
+                                    class="space-y-2 text-sm text-stone-300"
+                                >
+                                    <legend>Stat modifiers</legend>
+                                    <div
+                                        v-for="(
+                                            modifier, index
+                                        ) in rules.modifiers"
+                                        :key="index"
+                                        class="grid grid-cols-[1fr_auto_4rem_auto_auto] items-center gap-1"
+                                    >
+                                        <select
+                                            v-model="modifier.stat"
+                                            aria-label="Stat"
+                                            class="border border-stone-700 bg-stone-950 p-2"
+                                        >
+                                            <option
+                                                v-for="stat in keysOf('stats')"
+                                                :key="stat.key"
+                                                :value="stat.key"
+                                            >
+                                                {{ stat.name }}
+                                            </option>
+                                        </select>
+                                        <select
+                                            v-model="modifier.op"
+                                            aria-label="Operation"
+                                            class="border border-stone-700 bg-stone-950 p-2"
+                                        >
+                                            <option value="set">=</option>
+                                            <option value="add">+</option>
+                                        </select>
+                                        <input
+                                            v-model.number="modifier.value"
+                                            type="number"
+                                            aria-label="Value"
+                                            class="w-full border border-stone-700 bg-stone-950 p-2"
+                                        />
+                                        <select
+                                            v-model="modifier.when"
+                                            aria-label="When"
+                                            class="border border-stone-700 bg-stone-950 p-2"
+                                        >
+                                            <option value="equipped">
+                                                when equipped
+                                            </option>
+                                            <option value="carried">
+                                                when carried
+                                            </option>
+                                        </select>
+                                        <button
+                                            type="button"
+                                            class="px-2 text-red-400"
+                                            aria-label="Remove modifier"
+                                            @click="
+                                                rules.modifiers.splice(index, 1)
+                                            "
+                                        >
+                                            ×
+                                        </button>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        class="text-amber-400"
+                                        @click="
+                                            rules.modifiers.push({
+                                                stat:
+                                                    keysOf('stats')[0]?.key ??
+                                                    '',
+                                                op: 'set',
+                                                value: 1,
+                                                when: 'equipped',
+                                            })
+                                        "
+                                    >
+                                        + Add modifier
+                                    </button>
+                                    <p class="text-xs text-stone-500">
+                                        “=” sets the stat (best equipped value
+                                        wins, e.g. weapon attack dice); “+” adds
+                                        to it (armor).
+                                    </p>
+                                </fieldset>
+                                <fieldset
+                                    v-if="keysOf('classes').length"
+                                    class="text-sm text-stone-300"
+                                >
+                                    <legend>Classes that cannot use it</legend>
+                                    <div
+                                        class="mt-1 flex flex-wrap gap-x-4 gap-y-1"
+                                    >
+                                        <label
+                                            v-for="option in keysOf('classes')"
+                                            :key="option.key"
+                                            class="flex items-center gap-1"
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                :checked="
+                                                    rules.excludeClasses.includes(
+                                                        option.key,
+                                                    )
+                                                "
+                                                @change="
+                                                    toggle(
+                                                        rules.excludeClasses,
+                                                        option.key,
+                                                    )
+                                                "
+                                            />
+                                            {{ option.name }}
+                                        </label>
+                                    </div>
+                                </fieldset>
+                                <label class="block text-sm text-stone-300"
+                                    >Tags<input
+                                        v-model="rules.tags"
+                                        placeholder="ranged, diagonal, throwable"
+                                        class="mt-1 w-full border border-stone-700 bg-stone-950 p-3"
+                                /></label>
+                            </template>
                             <label
                                 v-if="activeType !== 'items'"
                                 class="block text-sm text-stone-300"

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\GameSystemVersion;
 use App\Models\User;
 use App\Services\DefinitionCatalog;
+use App\Services\IconLibrary;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -116,6 +117,7 @@ class CatalogController extends Controller
                         ->get()
                         ->map(fn (Model $definition) => [
                             ...$definition->toArray(),
+                            'icon_url' => app(IconLibrary::class)->url($definition->getAttribute('icon')),
                             'configuration_json' => $definition->configuration ? json_encode($definition->configuration, JSON_PRETTY_PRINT) : '',
                         ]),
                 ];
@@ -174,13 +176,14 @@ class CatalogController extends Controller
                 }
 
                 $configuration = is_array($record['configuration'] ?? null) ? $record['configuration'] : [];
-                foreach (['category', 'charges', 'required_slots', 'default_stats', 'starting_equipment'] as $key) {
+                // Rule fields may sit at the top level of a record for readability; they are stored in configuration.
+                foreach (DefinitionCatalog::CONFIG_KEYS as $key) {
                     if (array_key_exists($key, $record)) {
                         $configuration[$key] = $record[$key];
                     }
                 }
 
-                $input = Arr::except($record, ['configuration', 'category', 'charges', 'required_slots', 'default_stats', 'starting_equipment']);
+                $input = Arr::except($record, ['configuration', ...DefinitionCatalog::CONFIG_KEYS]);
                 $input['configuration_json'] = json_encode($configuration, JSON_THROW_ON_ERROR);
                 $key = $input['key'] ?? null;
                 $definition = filled($key)

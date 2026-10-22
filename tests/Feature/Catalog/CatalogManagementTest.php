@@ -76,7 +76,7 @@ class CatalogManagementTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->component('Catalog/Index')
                 ->where('groups.items.definitions.0.name', 'Bandolier')
-                ->where('groups.items.definitions.3.name', 'Catalog Test Item'));
+                ->where('groups.items.definitions', fn ($definitions) => collect($definitions)->pluck('name')->contains('Catalog Test Item')));
     }
 
     public function test_administrator_can_upload_an_item_icon(): void

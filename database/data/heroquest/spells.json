@@ -1,0 +1,78 @@
+{
+    "definition_type": "spells",
+    "notes": "The twelve elemental hero spells, grouped by element. Descriptions are short paraphrases; check your spell cards for exact effects.",
+    "records": [
+        {
+            "key": "genie",
+            "name": "Genie",
+            "group": "Air",
+            "description": "Summon a genie to open a door or attack a monster."
+        },
+        {
+            "key": "swift_wind",
+            "name": "Swift Wind",
+            "group": "Air",
+            "description": "A hero moves farther on their next move."
+        },
+        {
+            "key": "tempest",
+            "name": "Tempest",
+            "group": "Air",
+            "description": "A whirlwind makes a monster miss its next turn."
+        },
+        {
+            "key": "heal_body",
+            "name": "Heal Body",
+            "group": "Earth",
+            "description": "Restore lost Body Points to a hero."
+        },
+        {
+            "key": "pass_through_rock",
+            "name": "Pass Through Rock",
+            "group": "Earth",
+            "description": "A hero may move through walls on their next move."
+        },
+        {
+            "key": "rock_skin",
+            "name": "Rock Skin",
+            "group": "Earth",
+            "description": "A hero defends with an extra die until wounded."
+        },
+        {
+            "key": "ball_of_flame",
+            "name": "Ball of Flame",
+            "group": "Fire",
+            "description": "Hurl fire at a monster to wound it."
+        },
+        {
+            "key": "courage",
+            "name": "Courage",
+            "group": "Fire",
+            "description": "A hero attacks with extra dice while monsters are visible."
+        },
+        {
+            "key": "fire_of_wrath",
+            "name": "Fire of Wrath",
+            "group": "Fire",
+            "description": "A direct magical attack against one monster."
+        },
+        {
+            "key": "sleep",
+            "name": "Sleep",
+            "group": "Water",
+            "description": "Put a monster to sleep."
+        },
+        {
+            "key": "veil_of_mist",
+            "name": "Veil of Mist",
+            "group": "Water",
+            "description": "A hero moves unseen past monsters on their next move."
+        },
+        {
+            "key": "water_of_healing",
+            "name": "Water of Healing",
+            "group": "Water",
+            "description": "Restore lost Body Points to a hero."
+        }
+    ]
+}

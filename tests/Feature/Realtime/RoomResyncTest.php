@@ -27,8 +27,11 @@ class RoomResyncTest extends TestCase
             ->assertJsonPath('game.game_events', [])->assertJsonPath('game.characters.0.note', null)
             ->assertDontSee('Secret');
         $this->getJson("/games/{$game->id}/revision")->assertExactJson(['game_id' => $game->id, 'revision' => 2, 'is_spectator' => true]);
-        $this->actingAs($owner)->patch("/characters/{$character->id}/gold", ['gold' => 25])->assertRedirect();
-        $this->getJson("/games/{$game->id}/characters/{$character->id}/state")->assertOk()->assertJsonPath('game.current_revision', 3)->assertJsonPath('character.gold', 25);
+        $gold = $character->stats()->whereHas('definition', fn ($query) => $query->where('key', 'gold'))->sole();
+        $this->actingAs($owner)->patch("/characters/{$character->id}/stats/{$gold->id}", ['delta' => 25])->assertRedirect();
+        $this->getJson("/games/{$game->id}/characters/{$character->id}/state")->assertOk()->assertJsonPath('game.current_revision', 3)
+            ->assertJsonPath('character.revision', 1)
+            ->assertJsonPath('character.stats.5.key', 'gold')->assertJsonPath('character.stats.5.value', 25);
         $this->getJson("/games/{$game->id}/state")->assertOk()->assertJsonPath('game.current_revision', 3)->assertJsonCount(3, 'game.game_events');
     }
 

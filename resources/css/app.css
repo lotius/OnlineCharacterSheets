@@ -229,3 +229,151 @@ h3 {
 .stat-value-flash {
     animation: stat-value-flash 700ms ease-out;
 }
+
+/* ---- Sheet, room and overlay UI ---- */
+
+.turn-glow {
+    box-shadow:
+        0 0 0 2px var(--hq-gold),
+        0 0 24px rgb(217 164 65 / 0.35) !important;
+}
+
+/* Current-turn character card: highlight sits inside the card edge (never clipped by the sticky turn bar). */
+.turn-card {
+    border-color: #facc15 !important;
+    background: linear-gradient(
+        180deg,
+        rgb(146 98 18 / 0.5),
+        rgb(51 34 25 / 0.97) 9rem,
+        rgb(27 20 16 / 0.98)
+    ) !important;
+    box-shadow:
+        inset 0 0 0 1px rgb(250 204 21 / 0.4),
+        inset 0 0 36px rgb(250 204 21 / 0.14),
+        0 0 28px rgb(250 204 21 / 0.3) !important;
+}
+
+.turn-banner {
+    background: linear-gradient(90deg, #facc15, #d9a441);
+    color: #160d08;
+}
+
+.setup-card {
+    border: 1px solid rgb(110 74 36 / 0.78);
+    border-radius: 6px;
+    padding: 1rem;
+    background: linear-gradient(
+        180deg,
+        rgb(51 34 25 / 0.96),
+        rgb(27 20 16 / 0.98)
+    );
+}
+
+.sheet-enter-active,
+.sheet-leave-active {
+    transition: opacity 160ms ease;
+}
+
+.sheet-enter-active .sheet-panel,
+.sheet-leave-active .sheet-panel {
+    transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.sheet-enter-from,
+.sheet-leave-to {
+    opacity: 0;
+}
+
+.sheet-enter-from .sheet-panel,
+.sheet-leave-to .sheet-panel {
+    transform: translateY(24px);
+}
+
+.toast-enter-active,
+.toast-leave-active {
+    transition: all 180ms ease;
+}
+
+.toast-enter-from,
+.toast-leave-to {
+    opacity: 0;
+    transform: translateY(12px);
+}
+
+@keyframes overlay-pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.55;
+    }
+}
+
+@keyframes overlay-flash {
+    0% {
+        filter: brightness(2.2);
+    }
+    100% {
+        filter: brightness(1);
+    }
+}
+
+@keyframes overlay-bump {
+    0% {
+        transform: scale(1);
+    }
+    35% {
+        transform: scale(1.25);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+@keyframes overlay-shake {
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+    20%,
+    60% {
+        transform: translateX(-6%);
+    }
+    40%,
+    80% {
+        transform: translateX(6%);
+    }
+}
+
+.overlay-anim-pulse {
+    animation: overlay-pulse 1.6s ease-in-out infinite;
+}
+
+.overlay-anim-flash {
+    animation: overlay-flash 700ms ease-out;
+}
+
+.overlay-anim-bump {
+    animation: overlay-bump 500ms ease-out;
+}
+
+.overlay-anim-shake {
+    animation: overlay-shake 450ms ease-in-out;
+}
+
+html.overlay-page,
+html.overlay-page body {
+    background: transparent !important;
+    overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .overlay-anim-pulse,
+    .overlay-anim-flash,
+    .overlay-anim-bump,
+    .overlay-anim-shake,
+    .stat-value-flash {
+        animation: none;
+    }
+}

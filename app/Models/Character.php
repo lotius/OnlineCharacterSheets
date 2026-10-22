@@ -16,7 +16,7 @@ class Character extends Model
 
     protected function casts(): array
     {
-        return ['configuration' => 'array'];
+        return ['configuration' => 'array', 'revision' => 'integer'];
     }
 
     public function gameSystemVersion(): BelongsTo

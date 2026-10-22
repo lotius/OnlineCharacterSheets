@@ -1,19 +1,21 @@
 <?php
 
 use App\Http\Controllers\AdminGameSystemController;
+use App\Http\Controllers\AssetController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\CharacterAssignmentController;
 use App\Http\Controllers\CharacterController;
 use App\Http\Controllers\CharacterEquipmentController;
-use App\Http\Controllers\CharacterGoldController;
 use App\Http\Controllers\CharacterItemController;
 use App\Http\Controllers\CharacterNoteController;
+use App\Http\Controllers\CharacterPortraitController;
 use App\Http\Controllers\CharacterSkillController;
 use App\Http\Controllers\CharacterSpellController;
 use App\Http\Controllers\CharacterStatController;
 use App\Http\Controllers\GameEventController;
+use App\Http\Controllers\GameLayoutController;
 use App\Http\Controllers\GameRevisionController;
 use App\Http\Controllers\GameSessionController;
 use App\Http\Controllers\GameSessionJoinController;
@@ -21,9 +23,11 @@ use App\Http\Controllers\GameSessionMemberController;
 use App\Http\Controllers\GameSessionViewerController;
 use App\Http\Controllers\GameStateController;
 use App\Http\Controllers\GameTurnController;
+use App\Http\Controllers\OverlayRenderController;
 use App\Http\Controllers\PersonalCharacterSheetController;
 use App\Http\Controllers\PublicRoomController;
 use App\Http\Controllers\RoomRealtimeController;
+use App\Http\Controllers\StreamOverlayController;
 use Illuminate\Support\Facades\Route;
 
 Route::pattern('game', '[0-9]+');
@@ -36,6 +40,13 @@ Route::get('/games/{game}/state', [GameStateController::class, 'show'])->name('g
 Route::get('/games/{game}/characters/{character}/state', [GameStateController::class, 'character'])->name('games.characters.state');
 Route::get('/games/{game}/characters/{character}', [PersonalCharacterSheetController::class, 'show'])->name('games.characters.show');
 Route::post('/games/{game}/viewers', [GameSessionViewerController::class, 'store'])->name('games.viewers.store');
+Route::get('/media/{asset:public_id}', [AssetController::class, 'file'])->name('media.show');
+
+// OBS/browser-source overlay: token-only, read-only, no session.
+Route::middleware('throttle:120,1')->group(function () {
+    Route::get('/overlay/{token}', [OverlayRenderController::class, 'show'])->name('overlay.show');
+    Route::get('/overlay/{token}/state', [OverlayRenderController::class, 'state'])->name('overlay.state');
+});
 
 Route::middleware('guest')->group(function () {
     Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
@@ -54,6 +65,12 @@ Route::middleware('auth')->group(function () {
     Route::patch('/games/{game}/turn', [GameTurnController::class, 'update'])->name('games.turn.update');
     Route::post('/games/{game}/events/{event}/undo', [GameTurnController::class, 'undo'])->name('games.events.undo');
     Route::patch('/games/{game}', [GameSessionController::class, 'update'])->name('games.update');
+    Route::put('/games/{game}/layouts', [GameLayoutController::class, 'update'])->name('games.layouts.update');
+    Route::post('/games/{game}/overlays', [StreamOverlayController::class, 'store'])->name('games.overlays.store');
+    Route::get('/games/{game}/overlays/{overlay}/edit', [StreamOverlayController::class, 'edit'])->name('games.overlays.edit');
+    Route::put('/games/{game}/overlays/{overlay}', [StreamOverlayController::class, 'update'])->name('games.overlays.update');
+    Route::post('/games/{game}/overlays/{overlay}/token', [StreamOverlayController::class, 'rotate'])->name('games.overlays.rotate');
+    Route::delete('/games/{game}/overlays/{overlay}', [StreamOverlayController::class, 'destroy'])->name('games.overlays.destroy');
     Route::post('/games/join', [GameSessionJoinController::class, 'store'])->name('games.join');
     Route::get('/library', [CatalogController::class, 'personal'])->name('library');
     Route::post('/library/{version}/{type}', [CatalogController::class, 'storePersonal'])->name('library.store');
@@ -67,10 +84,13 @@ Route::middleware('auth')->group(function () {
     Route::patch('/games/{game}/characters/{sessionCharacter}/assignment', [CharacterAssignmentController::class, 'update'])->name('games.characters.assignment.update');
     Route::delete('/games/{game}/characters/{sessionCharacter}/assignment', [CharacterAssignmentController::class, 'destroy'])->name('games.characters.assignment.destroy');
     Route::patch('/characters/{character}/stats/{stat}', [CharacterStatController::class, 'update'])->name('characters.stats.update');
-    Route::patch('/characters/{character}/gold', [CharacterGoldController::class, 'update'])->name('characters.gold.update');
+    Route::post('/characters/{character}/portrait', [CharacterPortraitController::class, 'store'])->name('characters.portrait.store');
+    Route::delete('/characters/{character}/portrait', [CharacterPortraitController::class, 'destroy'])->name('characters.portrait.destroy');
     Route::post('/characters/{character}/items', [CharacterItemController::class, 'store'])->name('characters.items.store');
     Route::patch('/characters/{character}/items/{item}', [CharacterItemController::class, 'update'])->name('characters.items.update');
-    Route::patch('/characters/{character}/items/{item}/active', [CharacterItemController::class, 'updateActive'])->name('characters.items.active.update');
+    Route::post('/characters/{character}/items/{item}/use', [CharacterItemController::class, 'use'])->name('characters.items.use');
+    Route::put('/characters/{character}/items/{item}/equip', [CharacterEquipmentController::class, 'equip'])->name('characters.items.equip');
+    Route::delete('/characters/{character}/items/{item}/equip', [CharacterEquipmentController::class, 'unequip'])->name('characters.items.unequip');
     Route::delete('/characters/{character}/items/{item}', [CharacterItemController::class, 'destroy'])->name('characters.items.destroy');
     Route::put('/characters/{character}/items/{item}/slots/{slot}', [CharacterEquipmentController::class, 'update'])->name('characters.items.slots.update');
     Route::delete('/characters/{character}/items/{item}/slots/{slot}', [CharacterEquipmentController::class, 'destroy'])->name('characters.items.slots.destroy');

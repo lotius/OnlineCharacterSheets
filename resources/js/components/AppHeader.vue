@@ -13,7 +13,7 @@ const open = ref(false);
 
 <template>
     <header
-        class="border-b border-stone-800 bg-stone-950/95 px-4 py-3 text-stone-100"
+        class="border-b border-stone-800 bg-stone-950/95 px-3 py-1.5 text-stone-100 sm:px-4 sm:py-3"
     >
         <div class="mx-auto flex max-w-7xl items-center justify-between gap-4">
             <nav class="flex min-w-0 flex-wrap items-center gap-2">
@@ -26,7 +26,7 @@ const open = ref(false);
                 <Link
                     v-if="page.props.auth.user"
                     href="/dashboard"
-                    class="px-3 py-2 text-sm text-stone-300 transition hover:text-amber-400"
+                    class="hidden px-3 py-2 text-sm text-stone-300 transition hover:text-amber-400 sm:inline-block"
                     :class="{
                         'bg-stone-900 text-amber-400': current === 'dashboard',
                     }"
@@ -34,7 +34,7 @@ const open = ref(false);
                 >
                 <Link
                     href="/rooms"
-                    class="px-3 py-2 text-sm text-stone-300 transition hover:text-amber-400"
+                    class="hidden px-3 py-2 text-sm text-stone-300 transition hover:text-amber-400 sm:inline-block"
                     :class="{
                         'bg-stone-900 text-amber-400': current === 'rooms',
                     }"
@@ -43,7 +43,7 @@ const open = ref(false);
                 <Link
                     v-if="page.props.auth.user"
                     href="/games/create"
-                    class="px-3 py-2 text-sm text-stone-300 transition hover:text-amber-400"
+                    class="hidden px-3 py-2 text-sm text-stone-300 transition hover:text-amber-400 sm:inline-block"
                     >Create room</Link
                 >
             </nav>
@@ -68,6 +68,24 @@ const open = ref(false);
                                 {{ page.props.auth.user.email }}
                             </p>
                         </div>
+                        <Link
+                            href="/dashboard"
+                            class="block px-3 py-2 text-sm text-stone-300 hover:bg-stone-950 hover:text-amber-400 sm:hidden"
+                            @click="open = false"
+                            >Your rooms</Link
+                        >
+                        <Link
+                            href="/rooms"
+                            class="block px-3 py-2 text-sm text-stone-300 hover:bg-stone-950 hover:text-amber-400 sm:hidden"
+                            @click="open = false"
+                            >Public rooms</Link
+                        >
+                        <Link
+                            href="/games/create"
+                            class="block px-3 py-2 text-sm text-stone-300 hover:bg-stone-950 hover:text-amber-400 sm:hidden"
+                            @click="open = false"
+                            >Create room</Link
+                        >
                         <Link
                             href="/library"
                             class="block px-3 py-2 text-sm text-stone-300 hover:bg-stone-950 hover:text-amber-400"

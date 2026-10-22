@@ -43,8 +43,11 @@ class CharacterEventState
     /** @return array<string, mixed> */
     public function read(Character $character, string $type, ?int $id): array
     {
+        if ($type === 'portrait') {
+            return ['portrait' => $character->fresh()->portrait];
+        }
         if ($type === 'gold') {
-            return ['gold' => $character->fresh()->gold];
+            return []; // Legacy events: gold now lives in a currency stat, so these can no longer be undone.
         }
         $model = self::MODELS[$type] ?? throw new \InvalidArgumentException('Unsupported event entity.');
         $query = $model::query()->where('character_id', $character->id);
@@ -64,10 +67,13 @@ class CharacterEventState
     /** @param array<string, mixed> $state */
     public function restore(Character $character, string $type, int $id, array $state): void
     {
-        if ($type === 'gold') {
-            $character->update(['gold' => $state['gold']]);
+        if ($type === 'portrait') {
+            $character->update(['portrait' => $state['portrait'] ?? null]);
 
             return;
+        }
+        if ($type === 'gold') {
+            throw ValidationException::withMessages(['event' => 'Legacy gold changes cannot be undone.']);
         }
         $model = self::MODELS[$type] ?? throw new \InvalidArgumentException('Unsupported event entity.');
         $entity = $model::query()->where('character_id', $character->id)->whereKey($type === 'note' ? ($state['id'] ?? $character->note?->id) : $id)->first();

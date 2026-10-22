@@ -33,9 +33,11 @@ class CharacterWorkflowTest extends TestCase
         ])->assertRedirect();
 
         $character = Character::query()->with('stats.definition')->sole();
-        $this->assertSame(['body' => 8, 'mind' => 2], $character->stats->mapWithKeys(fn ($stat) => [$stat->definition->key => $stat->value])->all());
+        $this->assertSame(['body' => 8, 'mind' => 2, 'attack' => 1, 'defend' => 2, 'move' => 2, 'gold' => 0], $character->stats->mapWithKeys(fn ($stat) => [$stat->definition->key => $stat->value])->all());
+        $this->assertSame([8, 2, null, null, null, null], $character->stats->pluck('max_value')->all(), 'Only resources track a maximum.');
         $this->assertDatabaseHas('session_characters', ['game_session_id' => $game->id, 'character_id' => $character->id]);
         $this->assertSame(['broadsword'], $character->items()->with('definition')->get()->pluck('definition.key')->all());
+        $this->assertSame(['right_hand'], $character->items()->sole()->slots()->with('definition')->get()->pluck('definition.key')->all(), 'Starting weapons are equipped.');
     }
 
     public function test_only_dm_can_create_and_assign_characters(): void

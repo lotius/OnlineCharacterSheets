@@ -12,6 +12,12 @@ use Illuminate\Validation\Rule;
 
 class DefinitionCatalog
 {
+    /** Keys an import record may give at the top level; they are stored inside `configuration`. */
+    public const CONFIG_KEYS = [
+        'category', 'charges', 'cost', 'modifiers', 'allowed_slots', 'required_slots', 'exclude_classes', 'only_classes',
+        'consumable', 'tags', 'properties', 'group', 'default_stats', 'starting_equipment',
+    ];
+
     /** @return array<string, array{label: string, model: class-string<Model>}> */
     public function types(): array
     {
@@ -60,7 +66,7 @@ class DefinitionCatalog
         }
 
         if ($type === 'stats') {
-            $rules += ['data_type' => ['required', Rule::in(['integer', 'decimal', 'text', 'boolean'])], 'default_value' => ['nullable'], 'default_max_value' => ['nullable'], 'minimum_value' => ['nullable', 'numeric'], 'maximum_value' => ['nullable', 'numeric'], 'is_public' => ['boolean']];
+            $rules += ['kind' => ['nullable', Rule::in(['resource', 'attribute', 'currency'])], 'data_type' => ['required', Rule::in(['integer', 'decimal', 'text', 'boolean'])], 'default_value' => ['nullable'], 'default_max_value' => ['nullable'], 'minimum_value' => ['nullable', 'numeric'], 'maximum_value' => ['nullable', 'numeric'], 'is_public' => ['boolean']];
         } elseif ($type === 'slots') {
             $rules += ['capacity' => ['required', 'integer', 'min:1', 'max:100']];
         } elseif ($type === 'trays') {
@@ -71,6 +77,12 @@ class DefinitionCatalog
         $data['configuration'] = filled($data['configuration_json'] ?? null)
             ? json_decode($data['configuration_json'], true, 512, JSON_THROW_ON_ERROR)
             : null;
+        if ($type === 'items' && is_array($data['configuration'])) {
+            $data['configuration'] = app(ItemRules::class)->validateConfiguration($data['configuration']);
+        }
+        if ($type === 'stats') {
+            $data['kind'] ??= 'resource';
+        }
 
         return Arr::except($data, 'configuration_json');
     }
