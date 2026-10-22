@@ -84,7 +84,7 @@ class RoomWorkflowTest extends TestCase
         $this->assertSame('The Trial Revised', $game->name);
         $this->assertSame('public_view', $game->visibility);
         $this->assertSame('lobby', $game->status);
-        $this->assertSame(1, $game->current_revision);
+        $this->assertSame(2, $game->current_revision);
         Event::assertDispatched(RoomRealtimePinged::class, fn ($event) => $event->gameSession->is($game) && $event->includePublicChannel);
         Event::assertDispatched(PublicRoomDirectoryChanged::class);
     }

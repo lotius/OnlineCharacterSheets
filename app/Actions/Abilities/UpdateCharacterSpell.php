@@ -4,6 +4,7 @@ namespace App\Actions\Abilities;
 
 use App\Models\Character;
 use App\Models\CharacterSpell;
+use App\Services\CharacterMutation;
 use Illuminate\Validation\ValidationException;
 
 class UpdateCharacterSpell
@@ -14,7 +15,7 @@ class UpdateCharacterSpell
         if ($spell->character_id !== $character->id) {
             throw ValidationException::withMessages(['spell' => 'That spell does not belong to this character.']);
         }
-        $spell->update($attributes);
+        app(CharacterMutation::class)->run($character, 'spell.changed', 'spell', $spell->id, fn () => $spell->refresh()->update($attributes));
 
         return $spell->refresh();
     }

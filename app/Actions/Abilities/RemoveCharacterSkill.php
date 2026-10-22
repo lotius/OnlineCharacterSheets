@@ -4,6 +4,7 @@ namespace App\Actions\Abilities;
 
 use App\Models\Character;
 use App\Models\CharacterSkill;
+use App\Services\CharacterMutation;
 use Illuminate\Validation\ValidationException;
 
 class RemoveCharacterSkill
@@ -13,6 +14,6 @@ class RemoveCharacterSkill
         if ($skill->character_id !== $character->id) {
             throw ValidationException::withMessages(['skill' => 'That skill does not belong to this character.']);
         }
-        $skill->delete();
+        app(CharacterMutation::class)->run($character, 'skill.removed', 'skill', $skill->id, fn () => $skill->delete());
     }
 }

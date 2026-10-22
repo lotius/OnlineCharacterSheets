@@ -4,7 +4,7 @@ namespace App\Actions\Characters;
 
 use App\Models\Character;
 use App\Models\CharacterStat;
-use Illuminate\Support\Facades\DB;
+use App\Services\CharacterMutation;
 use Illuminate\Validation\ValidationException;
 
 class UpdateCharacterStat
@@ -23,8 +23,8 @@ class UpdateCharacterStat
             throw ValidationException::withMessages(['value' => "Value must be between {$minimum} and {$maximum}."]);
         }
 
-        return DB::transaction(function () use ($stat, $value): CharacterStat {
-            $stat->update(['value' => $value]);
+        return app(CharacterMutation::class)->run($character, 'stat.changed', 'stat', $stat->id, function () use ($stat, $value): CharacterStat {
+            $stat->refresh()->update(['value' => $value]);
 
             return $stat->refresh();
         });

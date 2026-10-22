@@ -4,6 +4,7 @@ namespace App\Actions\Abilities;
 
 use App\Models\Character;
 use App\Models\CharacterSkill;
+use App\Services\CharacterMutation;
 use Illuminate\Validation\ValidationException;
 
 class UpdateCharacterSkill
@@ -14,7 +15,7 @@ class UpdateCharacterSkill
         if ($skill->character_id !== $character->id) {
             throw ValidationException::withMessages(['skill' => 'That skill does not belong to this character.']);
         }
-        $skill->update($attributes);
+        app(CharacterMutation::class)->run($character, 'skill.changed', 'skill', $skill->id, fn () => $skill->refresh()->update($attributes));
 
         return $skill->refresh();
     }

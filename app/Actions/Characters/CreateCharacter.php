@@ -8,7 +8,9 @@ use App\Models\GameSession;
 use App\Models\ItemDefinition;
 use App\Models\StatDefinition;
 use App\Models\User;
+use App\Services\RoomMutation;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 
 class CreateCharacter
@@ -17,6 +19,8 @@ class CreateCharacter
     public function handle(User $actor, GameSession $session, array $attributes): Character
     {
         return DB::transaction(function () use ($actor, $session, $attributes): Character {
+            $session = GameSession::query()->lockForUpdate()->findOrFail($session->id);
+            Gate::forUser($actor)->authorize('update', $session);
             $class = null;
 
             if (! empty($attributes['character_class_definition_id'])) {
@@ -64,6 +68,8 @@ class CreateCharacter
                     ]);
                 }
             }
+
+            app(RoomMutation::class)->record($session, 'character.created', [], ['character_id' => $character->id, 'name' => $character->name, 'character_class_definition_id' => $character->character_class_definition_id], $actor->id);
 
             return $character->load(['characterClass', 'stats.definition', 'items.definition']);
         });

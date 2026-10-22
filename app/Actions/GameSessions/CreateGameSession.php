@@ -5,6 +5,7 @@ namespace App\Actions\GameSessions;
 use App\Models\GameSession;
 use App\Models\GameSystemVersion;
 use App\Models\User;
+use App\Services\RoomMutation;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -30,6 +31,8 @@ class CreateGameSession
                 'joined_at' => now(),
                 'approved_at' => now(),
             ]);
+
+            app(RoomMutation::class)->record($session, 'session.created', [], $session->only(['name', 'visibility', 'game_system_version_id']), $owner->id);
 
             return $session;
         });

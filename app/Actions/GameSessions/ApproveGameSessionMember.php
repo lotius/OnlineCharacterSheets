@@ -4,6 +4,7 @@ namespace App\Actions\GameSessions;
 
 use App\Models\GameSession;
 use App\Models\GameSessionMember;
+use App\Services\RoomMutation;
 use Illuminate\Validation\ValidationException;
 
 class ApproveGameSessionMember
@@ -12,11 +13,13 @@ class ApproveGameSessionMember
     {
         $this->ensureMemberBelongsToSession($session, $member);
 
-        $member->update([
-            'status' => 'active',
-            'approved_at' => now(),
-            'joined_at' => $member->joined_at ?? now(),
-        ]);
+        app(RoomMutation::class)->run($session, 'member.approved', fn () => $member->fresh()->only(['id', 'user_id', 'role', 'status']), function () use ($member) {
+            $member->refresh()->update([
+                'status' => 'active',
+                'approved_at' => now(),
+                'joined_at' => $member->joined_at ?? now(),
+            ]);
+        });
 
         return $member->refresh();
     }

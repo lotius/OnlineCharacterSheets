@@ -4,6 +4,7 @@ namespace App\Actions\GameSessions;
 
 use App\Models\GameSession;
 use App\Models\GameSessionMember;
+use App\Services\RoomMutation;
 use Illuminate\Validation\ValidationException;
 
 class RejectGameSessionMember
@@ -14,7 +15,9 @@ class RejectGameSessionMember
             throw ValidationException::withMessages(['member' => 'This membership cannot be rejected for this room.']);
         }
 
-        $member->update(['status' => 'rejected', 'approved_at' => null, 'joined_at' => null]);
+        app(RoomMutation::class)->run($session, 'member.rejected', fn () => $member->fresh()->only(['id', 'user_id', 'role', 'status']), function () use ($member) {
+            $member->refresh()->update(['status' => 'rejected', 'approved_at' => null, 'joined_at' => null]);
+        });
 
         return $member->refresh();
     }

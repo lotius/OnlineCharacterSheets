@@ -6,6 +6,9 @@ A Laravel, Vue, and Inertia application for realtime tabletop character sheets a
 
 - Milestone 1: authentication, generic game definitions, rooms, membership approval, character creation/assignment, policies, and Reverb/Echo connectivity.
 - Milestone 2: inventory, equipment slots, spells, skills, notes, configured trays, and a responsive personal character sheet.
+- Milestone 3 (in progress): DM/co-DM turn selection, previous/next/reset, current-turn indicators, and a DM-only turn history with compensating undo. Turn changes commit their revision and event together, then notify clients through the existing room channel. Apply migrations before opening a room.
+
+Turn traversal uses configured `session_characters.turn_order`, then session-character ID for ties and unconfigured entries. Removing the current character clears the turn. Undo is limited to the latest unchanged turn event; it cannot restore a removed character. Inventory, stats, and other existing mutations still need migration to the audit pipeline, and turn-order editing remains planned.
 
 Detailed planned-versus-completed status is maintained in `CODEX_ACTION_PLAN.md`.
 

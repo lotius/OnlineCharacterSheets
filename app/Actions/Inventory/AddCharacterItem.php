@@ -5,6 +5,7 @@ namespace App\Actions\Inventory;
 use App\Models\Character;
 use App\Models\CharacterItem;
 use App\Models\ItemDefinition;
+use App\Services\CharacterMutation;
 use Illuminate\Validation\ValidationException;
 
 class AddCharacterItem
@@ -25,6 +26,6 @@ class AddCharacterItem
             throw ValidationException::withMessages(['custom_name' => 'Choose an item or provide a custom item name.']);
         }
 
-        return $character->items()->create($attributes);
+        return app(CharacterMutation::class)->run($character, 'item.added', 'item', null, fn () => $character->items()->create($attributes));
     }
 }

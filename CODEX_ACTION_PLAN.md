@@ -2995,7 +2995,7 @@ Codex should maintain this list during implementation.
 | --- | --- | --- | --- |
 | 1 — Foundation | Two authenticated users can join a room and the DM can assign a character. | Authentication, generic game definitions, room creation/join approval, characters, stats, assignment, policies, MariaDB, Reverb/Echo connectivity, and permission tests are complete. | Complete |
 | 2 — Functional Character Sheets | A player can use a phone to manage their assigned character. | Generic inventory and custom items, equipment slots, spells, skills, notes, configured trays, and a responsive personal sheet are complete with authorization tests. | Complete |
-| 3 — Game Control | Turns, revisioning, event log, and undo. | Not started. | Planned |
+| 3 — Game Control | Turns, revisioning, event log, and undo. | Turn controls/highlights, atomic turn revisions, append-only turn history, and compensating turn undo implemented. Other mutations and order editing remain. | In progress |
 | 4 — Realtime | Live domain mutations with reconnect/resync. | Transport and channel authorization are proven; domain broadcasts and resync remain. | Partially prepared |
 | 5–10 | Viewing, theme/assets, overlays, and HQForge-ready API. | Not started beyond foundational extension points. | Planned |
 
@@ -3067,7 +3067,17 @@ Codex should maintain this list during implementation.
 
 ### Current focus
 
-- Begin Milestone 3 with turn order/current-character tracking, revisioning, the append-only event log, and compensating undo.
+- Continue Milestone 3 by moving stats, inventory, abilities, assignments, and membership changes into the transactional event/revision pipeline; add safe inverse handlers and turn-order editing.
+
+### 2026-09-28 — Milestone 3: audited turn controls
+
+- Added authoritative current-character tracking and DM/co-DM select, previous, next, and reset controls using configured turn order with a deterministic fallback.
+- Added room and personal-sheet current-turn indicators, refreshed through the existing realtime room invalidation channel.
+- Added `game_events` with unique room revisions and immutable before/after records; turn mutations lock the room and commit state, revision, and event together before broadcasting.
+- Added DM-only recent turn history and compensating undo of the latest unchanged turn. Repeated, stale, cross-room, and inactive-character restores are rejected.
+- Removing the active character clears the turn and records a non-undoable event.
+- Existing non-turn mutations still use the earlier revision/broadcast implementation; broad audit/undo coverage, editable order, and dedicated domain event contracts remain unfinished.
+- Verification: migration applied locally; 6 turn tests pass (53 assertions); frontend lint, Vue TypeScript, production build, and PHP formatting pass. Full suite: 57/59 pass; two existing inventory tests assume no starting equipment. Repository-wide PHP static analysis remains failing on existing model/type issues.
 
 ```text
 [x] Project bootstrap
@@ -3093,7 +3103,7 @@ Codex should maintain this list during implementation.
 [x] Character sheet components
 [x] Responsive personal sheet
 [ ] Turn order
-[ ] Current character highlight
+[x] Current character highlight
 [ ] Game event log
 [ ] Revision system
 [ ] Undo

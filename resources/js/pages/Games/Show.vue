@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import AppHeader from '@/components/AppHeader.vue';
-import { echo } from '@/echo';
+import GameHistory, { type HistoryEvent } from '@/components/GameHistory.vue';
+import TurnControls from '@/components/TurnControls.vue';
+import { useRoomSync } from '@/lib/roomSync';
 import { sendRoomViewerHeartbeat } from '@/lib/roomViewers';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
@@ -30,6 +32,11 @@ type Ability = {
     icon: string | null;
     is_used: boolean;
 };
+type DetailEntry = {
+    name: string;
+    description: string | null;
+    icon: string | null;
+};
 type Character = {
     session_character_id: number;
     id: number;
@@ -47,6 +54,17 @@ type Character = {
     note: string | null;
 };
 type Game = {
+    game_events: HistoryEvent[];
+    current_character_id: number | null;
+    current_revision: number;
+    turn_events: Array<{
+        id: number;
+        revision: number;
+        event_type: string;
+        before_character_id: number | null;
+        after_character_id: number | null;
+        undone: boolean;
+    }>;
     id: number;
     name: string;
     join_code: string;
@@ -62,21 +80,9 @@ type Game = {
     players: Option[];
     characters: Character[];
 };
-type RoomRealtimePayload = {
-    room_name: string;
-    visibility: string;
-};
-type RoomViewerCountPayload = {
-    viewer_count: number;
-};
 
 const props = defineProps<{ game: Game }>();
-const connectionStatus = ref<'connecting' | 'connected' | 'error'>(
-    'connecting',
-);
 const changedStats = ref<Record<string, boolean>>({});
-let stopConnectionListener: (() => void) | null = null;
-let subscribedChannelName: string | null = null;
 let viewerHeartbeatInterval: number | null = null;
 const sheetSections = [
     {
@@ -104,6 +110,7 @@ const joinCodeCopied = ref(false);
 const goldAdjustmentCharacter = ref<Character | null>(null);
 const goldAdjustmentOperation = ref<'add' | 'subtract'>('add');
 const goldAdjustmentAmount = ref(1);
+const detailEntry = ref<DetailEntry | null>(null);
 const viewerCount = ref(props.game.viewer_count);
 const partyGold = computed(() =>
     props.game.characters.reduce(
@@ -201,6 +208,7 @@ const toggleActiveItem = (character: Character, item: Item) =>
         { is_active: !item.is_active },
         { preserveScroll: true },
     );
+const showDetails = (entry: DetailEntry) => (detailEntry.value = entry);
 const updateRoomSettings = () =>
     roomSettingsForm.patch(`/games/${props.game.id}`, {
         preserveScroll: true,
@@ -237,63 +245,18 @@ watch(currentStatValues, (current, previous) => {
     }
 });
 
+const { status: connectionStatus, syncError, resync } = useRoomSync(() => props.game, {
+    only: ['game'],
+    onViewerCount: count => { viewerCount.value = count; },
+});
+
 onMounted(() => {
-    if (!echo) {
-        connectionStatus.value = 'error';
-        return;
-    }
-
-    const channel = props.game.is_spectator
-        ? echo.channel(`games.public.${props.game.id}`)
-        : echo.private(`games.${props.game.id}`);
-    subscribedChannelName = props.game.is_spectator
-        ? `games.public.${props.game.id}`
-        : `games.${props.game.id}`;
-    const connection = echo.connector.pusher.connection;
-    const updateConnectionStatus = ({ current }: { current: string }) => {
-        if (current === 'connected') connectionStatus.value = 'connected';
-        else if (current === 'failed' || current === 'unavailable')
-            connectionStatus.value = 'error';
-        else connectionStatus.value = 'connecting';
-    };
-
-    connection.bind('state_change', updateConnectionStatus);
-    stopConnectionListener = () =>
-        connection.unbind('state_change', updateConnectionStatus);
-
-    channel
-        .listen('.room.realtime.ping', (payload: RoomRealtimePayload) => {
-            if (
-                props.game.is_spectator &&
-                payload.visibility !== 'public_view'
-            ) {
-                router.visit(
-                    `/rooms?room_closed_name=${encodeURIComponent(payload.room_name)}`,
-                );
-                return;
-            }
-
-            router.reload({
-                only: ['game'],
-            });
-        })
-        .listen(
-            '.room.viewer_count.changed',
-            (payload: RoomViewerCountPayload) => {
-                viewerCount.value = payload.viewer_count;
-            },
-        )
-        .subscribed(() => (connectionStatus.value = 'connected'))
-        .error(() => (connectionStatus.value = 'error'));
-
     void sendViewerHeartbeat();
     viewerHeartbeatInterval = window.setInterval(sendViewerHeartbeat, 15000);
 });
 
 onUnmounted(() => {
-    stopConnectionListener?.();
     if (viewerHeartbeatInterval) window.clearInterval(viewerHeartbeatInterval);
-    if (subscribedChannelName) echo?.leave(subscribedChannelName);
 });
 </script>
 
@@ -301,6 +264,10 @@ onUnmounted(() => {
     <Head :title="game.name" />
     <main class="min-h-screen bg-stone-950 text-stone-100">
         <AppHeader :current="game.is_spectator ? 'rooms' : 'dashboard'" />
+        <div v-if="syncError" role="status" class="bg-amber-950 px-6 py-3 text-sm text-amber-200">
+            Updates may be delayed. Reconnecting automatically.
+            <button class="ml-3 underline" @click="resync">Retry now</button>
+        </div>
         <div class="mx-auto max-w-6xl px-6 py-10">
             <header
                 class="flex flex-wrap items-start justify-between gap-5 border-b border-stone-800 pb-7"
@@ -433,6 +400,48 @@ onUnmounted(() => {
                         }}
                     </button>
                 </form>
+            </div>
+            <div
+                v-if="detailEntry"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/80 p-4"
+                @click.self="detailEntry = null"
+            >
+                <section
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="room-entry-details-title"
+                    class="w-full max-w-md border border-amber-800/50 bg-stone-900 p-6 shadow-2xl"
+                >
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="flex items-center gap-3">
+                            <img
+                                v-if="detailEntry.icon"
+                                :src="detailEntry.icon"
+                                alt=""
+                                class="size-12 object-contain"
+                            />
+                            <h2
+                                id="room-entry-details-title"
+                                class="hq-rule-heading text-xl font-bold"
+                            >
+                                {{ detailEntry.name }}
+                            </h2>
+                        </div>
+                        <button
+                            type="button"
+                            class="text-2xl text-stone-400 hover:text-stone-100"
+                            aria-label="Close details"
+                            @click="detailEntry = null"
+                        >
+                            ×
+                        </button>
+                    </div>
+                    <p class="mt-4 whitespace-pre-wrap text-stone-300">
+                        {{
+                            detailEntry.description || 'No additional details.'
+                        }}
+                    </p>
+                </section>
             </div>
 
             <div
@@ -594,16 +603,40 @@ onUnmounted(() => {
                         {{ partyGold }}
                     </p>
                 </div>
+                <TurnControls
+                    :game-id="game.id"
+                    :current-character-id="game.current_character_id"
+                    :can-manage="game.can_manage_members"
+                    :characters="game.characters"
+                    :events="game.turn_events"
+                />
+                <GameHistory
+                    v-if="game.can_manage_members"
+                    :game-id="game.id"
+                    :events="game.game_events"
+                />
                 <div class="mt-5 grid gap-4 lg:grid-cols-2">
                     <article
                         v-for="character in game.characters"
                         :key="character.id"
                         class="border border-stone-800 bg-stone-900 p-5"
+                        :class="{
+                            'ring-2 ring-amber-400':
+                                game.current_character_id === character.id,
+                        }"
                     >
                         <div class="flex items-start justify-between gap-4">
                             <div>
                                 <h3 class="text-2xl font-bold">
                                     {{ character.name }}
+                                    <span
+                                        v-if="
+                                            game.current_character_id ===
+                                            character.id
+                                        "
+                                        class="block text-sm text-amber-300"
+                                        >Current turn</span
+                                    >
                                 </h3>
                                 <p class="text-sm text-stone-400">
                                     {{ character.class_name || 'Unclassed' }}
@@ -745,7 +778,7 @@ onUnmounted(() => {
                                 </div>
                             </div>
                         </div>
-                        <section class="mt-4">
+                        <section class="mt-3">
                             <h4 class="font-bold text-amber-400">
                                 Active Items
                             </h4>
@@ -762,7 +795,9 @@ onUnmounted(() => {
                                         (entry) => entry.is_active,
                                     )"
                                     :key="item.id"
-                                    class="flex items-start justify-between gap-3 bg-stone-950 p-3"
+                                    class="flex cursor-pointer items-start justify-between gap-3 bg-stone-950 p-3"
+                                    :title="item.description || item.name"
+                                    @click="showDetails(item)"
                                 >
                                     <div class="flex min-w-0 gap-3">
                                         <img
@@ -772,24 +807,14 @@ onUnmounted(() => {
                                             class="size-9 shrink-0 object-contain"
                                         />
                                         <div>
-                                            <strong
-                                                >{{ item.name }} ×{{
-                                                    item.quantity
-                                                }}</strong
-                                            >
-                                            <p
-                                                v-if="item.description"
-                                                class="text-sm text-stone-400"
-                                            >
-                                                {{ item.description }}
-                                            </p>
+                                            <strong>{{ item.name }}</strong>
                                         </div>
                                     </div>
                                     <button
                                         v-if="character.can_update"
                                         type="button"
                                         class="shrink-0 text-sm text-amber-400 hover:text-amber-300"
-                                        @click="
+                                        @click.stop="
                                             toggleActiveItem(character, item)
                                         "
                                     >
@@ -801,7 +826,7 @@ onUnmounted(() => {
                                 No active items.
                             </p>
                         </section>
-                        <div class="mt-5 space-y-2">
+                        <div class="mt-2 space-y-2">
                             <section
                                 v-for="section in sheetSections"
                                 :key="section.key"
@@ -871,48 +896,61 @@ onUnmounted(() => {
                                         v-if="section.key === 'inventory'"
                                     >
                                         <article
-                                            v-for="item in character.items"
+                                            v-for="item in character.items.filter(
+                                                (entry) =>
+                                                    entry.quantity -
+                                                        Number(
+                                                            entry.is_active,
+                                                        ) >
+                                                    0,
+                                            )"
                                             :key="item.id"
                                             class="bg-stone-900 p-3"
+                                            :title="
+                                                item.description || item.name
+                                            "
                                         >
                                             <div
-                                                class="flex items-center gap-2"
+                                                class="flex items-center justify-between gap-3"
                                             >
-                                                <img
-                                                    v-if="item.icon"
-                                                    :src="item.icon"
-                                                    alt=""
-                                                    class="size-8 object-contain"
-                                                />
-                                                <strong
-                                                    >{{ item.name }} x{{
-                                                        item.quantity
-                                                    }}</strong
+                                                <button
+                                                    type="button"
+                                                    class="flex min-w-0 items-center gap-2 text-left"
+                                                    @click="showDetails(item)"
                                                 >
+                                                    <img
+                                                        v-if="item.icon"
+                                                        :src="item.icon"
+                                                        alt=""
+                                                        class="size-8 shrink-0 object-contain"
+                                                    />
+                                                    <strong
+                                                        >{{ item.name }} x{{
+                                                            item.quantity -
+                                                            Number(
+                                                                item.is_active,
+                                                            )
+                                                        }}</strong
+                                                    >
+                                                </button>
+                                                <button
+                                                    v-if="character.can_update"
+                                                    type="button"
+                                                    class="shrink-0 border border-stone-700 px-2 py-1 text-xs font-semibold text-amber-400 hover:border-amber-600"
+                                                    @click="
+                                                        toggleActiveItem(
+                                                            character,
+                                                            item,
+                                                        )
+                                                    "
+                                                >
+                                                    {{
+                                                        item.is_active
+                                                            ? 'Stop using'
+                                                            : 'Use item'
+                                                    }}
+                                                </button>
                                             </div>
-                                            <p
-                                                v-if="item.description"
-                                                class="text-stone-400"
-                                            >
-                                                {{ item.description }}
-                                            </p>
-                                            <button
-                                                v-if="character.can_update"
-                                                type="button"
-                                                class="mt-2 border border-stone-700 px-3 py-1 font-semibold text-amber-400 hover:border-amber-600"
-                                                @click="
-                                                    toggleActiveItem(
-                                                        character,
-                                                        item,
-                                                    )
-                                                "
-                                            >
-                                                {{
-                                                    item.is_active
-                                                        ? 'Stop using'
-                                                        : 'Use item'
-                                                }}
-                                            </button>
                                             <p
                                                 v-if="item.slots.length"
                                                 class="text-amber-500"
@@ -922,7 +960,16 @@ onUnmounted(() => {
                                             </p>
                                         </article>
                                         <p
-                                            v-if="!character.items.length"
+                                            v-if="
+                                                !character.items.some(
+                                                    (item) =>
+                                                        item.quantity -
+                                                            Number(
+                                                                item.is_active,
+                                                            ) >
+                                                        0,
+                                                )
+                                            "
                                             class="text-stone-500"
                                         >
                                             No items.
@@ -935,12 +982,18 @@ onUnmounted(() => {
                                             v-for="ability in character.spells"
                                             :key="ability.id"
                                             class="bg-stone-900 p-3"
+                                            :title="
+                                                ability.description ||
+                                                ability.name
+                                            "
                                             :class="{
                                                 'opacity-50': ability.is_used,
                                             }"
                                         >
-                                            <div
-                                                class="flex items-center gap-2"
+                                            <button
+                                                type="button"
+                                                class="flex items-center gap-2 text-left"
+                                                @click="showDetails(ability)"
                                             >
                                                 <img
                                                     v-if="ability.icon"
@@ -951,10 +1004,7 @@ onUnmounted(() => {
                                                 <strong>{{
                                                     ability.name
                                                 }}</strong>
-                                            </div>
-                                            <p class="text-stone-400">
-                                                {{ ability.description }}
-                                            </p>
+                                            </button>
                                         </article>
                                         <p
                                             v-if="!character.spells.length"
@@ -970,12 +1020,18 @@ onUnmounted(() => {
                                             v-for="ability in character.skills"
                                             :key="ability.id"
                                             class="bg-stone-900 p-3"
+                                            :title="
+                                                ability.description ||
+                                                ability.name
+                                            "
                                             :class="{
                                                 'opacity-50': ability.is_used,
                                             }"
                                         >
-                                            <div
-                                                class="flex items-center gap-2"
+                                            <button
+                                                type="button"
+                                                class="flex items-center gap-2 text-left"
+                                                @click="showDetails(ability)"
                                             >
                                                 <img
                                                     v-if="ability.icon"
@@ -986,10 +1042,7 @@ onUnmounted(() => {
                                                 <strong>{{
                                                     ability.name
                                                 }}</strong>
-                                            </div>
-                                            <p class="text-stone-400">
-                                                {{ ability.description }}
-                                            </p>
+                                            </button>
                                         </article>
                                         <p
                                             v-if="!character.skills.length"

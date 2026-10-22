@@ -4,6 +4,7 @@ namespace App\Actions\Inventory;
 
 use App\Models\Character;
 use App\Models\CharacterItem;
+use App\Services\CharacterMutation;
 use Illuminate\Validation\ValidationException;
 
 class UpdateCharacterItemQuantity
@@ -11,7 +12,7 @@ class UpdateCharacterItemQuantity
     public function handle(Character $character, CharacterItem $item, int $quantity): CharacterItem
     {
         $this->ensureOwned($character, $item);
-        $item->update(['quantity' => $quantity]);
+        app(CharacterMutation::class)->run($character, 'item.quantity_changed', 'item', $item->id, fn () => $item->refresh()->update(['quantity' => $quantity]));
 
         return $item->refresh();
     }

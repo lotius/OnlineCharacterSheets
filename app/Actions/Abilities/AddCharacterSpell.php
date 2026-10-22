@@ -5,6 +5,7 @@ namespace App\Actions\Abilities;
 use App\Models\Character;
 use App\Models\CharacterSpell;
 use App\Models\SpellDefinition;
+use App\Services\CharacterMutation;
 use Illuminate\Validation\ValidationException;
 
 class AddCharacterSpell
@@ -18,6 +19,6 @@ class AddCharacterSpell
             throw ValidationException::withMessages(['spell_definition_id' => 'That spell is not valid for this character.']);
         }
 
-        return CharacterSpell::query()->firstOrCreate(['character_id' => $character->id, 'spell_definition_id' => $definition->id]);
+        return app(CharacterMutation::class)->run($character, 'spell.added', 'spell', null, fn () => CharacterSpell::query()->firstOrCreate(['character_id' => $character->id, 'spell_definition_id' => $definition->id]));
     }
 }

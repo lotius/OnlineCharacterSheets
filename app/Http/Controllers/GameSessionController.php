@@ -2,14 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Actions\GameSessions\BroadcastGameSessionUpdate;
 use App\Actions\GameSessions\CreateGameSession;
+use App\Actions\GameSessions\UpdateGameSession;
 use App\Http\Requests\GameSessions\StoreGameSessionRequest;
 use App\Http\Requests\GameSessions\UpdateGameSessionRequest;
-use App\Models\CharacterClassDefinition;
 use App\Models\GameSession;
 use App\Models\GameSystemVersion;
-use App\Models\TrayDefinition;
+use App\Services\RoomState;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -45,116 +44,23 @@ class GameSessionController extends Controller
         ]);
     }
 
-    public function store(StoreGameSessionRequest $request, CreateGameSession $create, BroadcastGameSessionUpdate $broadcast): RedirectResponse
+    public function store(StoreGameSessionRequest $request, CreateGameSession $create): RedirectResponse
     {
         $version = GameSystemVersion::query()->findOrFail($request->integer('game_system_version_id'));
         $session = $create->handle($request->user(), $version, $request->validated());
-        $broadcast->room($session, includePublicDirectory: $session->visibility === 'public_view');
 
         return redirect()->route('games.show', $session)->with('success', 'Room created.');
     }
 
-    public function update(UpdateGameSessionRequest $request, GameSession $game, BroadcastGameSessionUpdate $broadcast): RedirectResponse
+    public function update(UpdateGameSessionRequest $request, GameSession $game, UpdateGameSession $update): RedirectResponse
     {
-        $wasPublic = $game->visibility === 'public_view';
-
-        $game->update($request->validated());
-
-        $broadcast->room(
-            $game,
-            includePublicChannel: $wasPublic || $game->visibility === 'public_view',
-            includePublicDirectory: $wasPublic || $game->visibility === 'public_view',
-        );
+        $update->handle($game, $request->validated());
 
         return back()->with('success', 'Room settings saved.');
     }
 
-    public function show(Request $request, GameSession $game): Response
+    public function show(Request $request, GameSession $game, RoomState $state): Response
     {
-        $user = $request->user();
-        $isMember = $user?->can('view', $game) ?? false;
-        abort_unless($game->visibility === 'public_view' || $isMember, 403);
-        $game->load([
-            'gameSystemVersion.gameSystem',
-            'gameSystemVersion.characterClasses',
-            'members.user',
-            'sessionCharacters.assignedUser',
-            'sessionCharacters.character.characterClass',
-            'sessionCharacters.character.stats.definition',
-            'sessionCharacters.character.items.definition',
-            'sessionCharacters.character.items.slots.definition',
-            'sessionCharacters.character.spells.definition',
-            'sessionCharacters.character.skills.definition',
-            'sessionCharacters.character.note',
-            'gameSystemVersion.trays',
-        ]);
-
-        $canManageMembers = $user?->can('manageMembers', $game) ?? false;
-        $classes = CharacterClassDefinition::query()->availableToUser($game->owner)->where('game_system_version_id', $game->game_system_version_id)->orderBy('display_order')->get();
-        $trays = TrayDefinition::query()->availableToUser($game->owner)->where('game_system_version_id', $game->game_system_version_id)->orderBy('display_order')->get();
-
-        return Inertia::render('Games/Show', [
-            'game' => [
-                'id' => $game->id, 'name' => $game->name, 'join_code' => $game->join_code,
-                'status' => $game->status, 'visibility' => $game->visibility,
-                'viewer_count' => $game->viewers()->where('last_seen_at', '>=', now()->subSeconds(self::VIEWER_STALE_SECONDS))->count(),
-                'system' => $game->gameSystemVersion->gameSystem->name,
-                'can_manage_members' => $canManageMembers,
-                'can_manage_settings' => $user?->id === $game->owner_user_id,
-                'is_spectator' => ! $isMember,
-                'classes' => $classes->map(fn ($class) => [
-                    'id' => $class->id, 'name' => $class->name,
-                ]),
-                'players' => $game->members->where('status', 'active')->whereIn('role', ['player', 'co_dm'])->map(fn ($member) => [
-                    'id' => $member->user->id, 'name' => $member->user->name,
-                ])->values(),
-                'members' => $isMember ? $game->members->map(fn ($member) => [
-                    'id' => $member->id, 'name' => $member->user->name, 'role' => $member->role, 'status' => $member->status,
-                ]) : [],
-                'characters' => $game->sessionCharacters->where('is_active', true)->map(function ($sessionCharacter) use ($user, $trays) {
-                    $character = $sessionCharacter->character;
-                    $canUpdate = $user?->can('update', $character) ?? false;
-
-                    return [
-                        'session_character_id' => $sessionCharacter->id,
-                        'id' => $character->id,
-                        'name' => $character->name,
-                        'class_name' => $character->characterClass?->name,
-                        'gold' => $character->gold,
-                        'assigned_user_id' => $sessionCharacter->assigned_user_id,
-                        'assigned_user_name' => $sessionCharacter->assignedUser?->name,
-                        'can_update' => $canUpdate,
-                        'stats' => $character->stats->sortBy('definition.display_order')->values()->map(fn ($stat) => [
-                            'id' => $stat->id, 'key' => $stat->definition->key, 'name' => $stat->definition->name,
-                            'value' => $stat->value, 'max_value' => $stat->max_value,
-                        ]),
-                        'trays' => $trays->map(fn ($tray) => [
-                            'key' => $tray->key, 'name' => $tray->name, 'default_open' => $tray->default_open,
-                        ]),
-                        'items' => $character->items->map(fn ($item) => [
-                            'id' => $item->id, 'name' => $item->custom_name ?? $item->definition?->name,
-                            'description' => $item->custom_description ?? $item->definition?->description,
-                            'icon' => $item->definition?->icon ? '/storage/'.$item->definition->icon : null,
-                            'quantity' => $item->quantity,
-                            'is_active' => $item->is_active,
-                            'slots' => $item->slots->map(fn ($slot) => $slot->definition->name)->values(),
-                        ]),
-                        'spells' => $character->spells->map(fn ($spell) => [
-                            'id' => $spell->id, 'name' => $spell->definition->name,
-                            'description' => $spell->definition->description, 'is_used' => $spell->is_used,
-                            'icon' => $spell->definition->icon ? '/storage/'.$spell->definition->icon : null,
-                        ]),
-                        'skills' => $character->skills->map(fn ($skill) => [
-                            'id' => $skill->id, 'name' => $skill->definition->name,
-                            'description' => $skill->definition->description, 'is_used' => $skill->is_used,
-                            'icon' => $skill->definition->icon ? '/storage/'.$skill->definition->icon : null,
-                        ]),
-                        'note' => ! $character->note || (! $character->note->is_private || $canUpdate)
-                            ? $character->note?->content
-                            : null,
-                    ];
-                })->values(),
-            ],
-        ]);
+        return Inertia::render('Games/Show', $state->forViewer($request->user(), $game));
     }
 }

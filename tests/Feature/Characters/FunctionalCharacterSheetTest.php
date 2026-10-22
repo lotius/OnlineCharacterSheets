@@ -37,7 +37,7 @@ class FunctionalCharacterSheetTest extends TestCase
         $leftHand = SlotDefinition::query()->where('key', 'left_hand')->sole();
 
         $this->actingAs($player)->post("/characters/{$character->id}/items", ['item_definition_id' => $sword->id, 'quantity' => 1])->assertRedirect();
-        $item = $character->items()->sole();
+        $item = $character->items()->where('item_definition_id', $sword->id)->sole();
         $this->actingAs($player)->patch("/characters/{$character->id}/items/{$item->id}", ['quantity' => 3])->assertRedirect();
         $this->actingAs($player)->put("/characters/{$character->id}/items/{$item->id}/slots/{$leftHand->id}")->assertRedirect();
 
@@ -132,9 +132,10 @@ class FunctionalCharacterSheetTest extends TestCase
         $outsider = User::factory()->create();
         $sword = ItemDefinition::query()->where('key', 'broadsword')->sole();
 
+        $initialItems = $character->items()->count();
         $this->actingAs($outsider)->post("/characters/{$character->id}/items", ['item_definition_id' => $sword->id, 'quantity' => 1])->assertForbidden();
         $this->actingAs($outsider)->patch("/characters/{$character->id}/gold", ['gold' => 100])->assertForbidden();
-        $this->assertDatabaseCount('character_items', 0);
+        $this->assertDatabaseCount('character_items', $initialItems);
     }
 
     /** @return array{User, User, GameSession, Character} */

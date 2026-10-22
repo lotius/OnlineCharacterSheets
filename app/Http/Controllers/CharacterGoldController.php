@@ -2,14 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Actions\GameSessions\BroadcastGameSessionUpdate;
+use App\Actions\Characters\UpdateCharacterGold;
 use App\Models\Character;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class CharacterGoldController extends Controller
 {
-    public function update(Request $request, Character $character, BroadcastGameSessionUpdate $broadcast): RedirectResponse
+    public function update(Request $request, Character $character, UpdateCharacterGold $update): RedirectResponse
     {
         $this->authorize('update', $character);
 
@@ -17,8 +17,7 @@ class CharacterGoldController extends Controller
             'gold' => ['required', 'integer', 'min:0', 'max:4294967295'],
         ]);
 
-        $character->update(['gold' => $validated['gold']]);
-        $broadcast->character($character);
+        $update->handle($character, (int) $validated['gold']);
 
         return back();
     }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import AppHeader from '@/components/AppHeader.vue';
-import { echo } from '@/echo';
+import { useRoomSync } from '@/lib/roomSync';
 import { sendRoomViewerHeartbeat } from '@/lib/roomViewers';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { onMounted, onUnmounted, reactive, ref, watch } from 'vue';
@@ -29,6 +29,11 @@ type Ability = {
     is_used: boolean;
     charges: number | null;
 };
+type DetailEntry = {
+    name: string;
+    description: string | null;
+    icon: string | null;
+};
 type Character = {
     id: number;
     name: string;
@@ -46,23 +51,21 @@ type Character = {
     skills: Ability[];
     note: { content: string | null; is_private: boolean } | null;
 };
-type RoomRealtimePayload = {
-    room_name: string;
-    visibility: string;
-};
 
 const props = defineProps<{
-    game: { id: number; name: string; is_spectator: boolean };
+    game: {
+        id: number;
+        name: string;
+        is_spectator: boolean;
+        current_character_id: number | null;
+        current_revision: number;
+    };
     character: Character;
 }>();
-const connectionStatus = ref<'connecting' | 'connected' | 'error'>(
-    'connecting',
-);
 const changedStats = ref<Record<number, boolean>>({});
 const goldAdjustment = ref<'add' | 'subtract' | null>(null);
 const goldAdjustmentAmount = ref(1);
-let stopConnectionListener: (() => void) | null = null;
-let subscribedChannelName: string | null = null;
+const detailEntry = ref<DetailEntry | null>(null);
 let viewerHeartbeatInterval: number | null = null;
 const sheetSections = [
     {
@@ -139,6 +142,7 @@ const toggleActiveItem = (item: Item) =>
         { is_active: !item.is_active },
         preserve,
     );
+const showDetails = (entry: DetailEntry) => (detailEntry.value = entry);
 const toggleAbility = (kind: 'spells' | 'skills', ability: Ability) =>
     router.patch(
         `/characters/${props.character.id}/${kind}/${ability.id}`,
@@ -175,49 +179,12 @@ watch(currentStatValues, (current, previous) => {
     }
 });
 
+const { status: connectionStatus, syncError, resync } = useRoomSync(() => props.game, {
+    only: ['game', 'character'],
+    characterId: props.character.id,
+});
+
 onMounted(() => {
-    if (!echo) {
-        connectionStatus.value = 'error';
-        return;
-    }
-
-    const channel = props.game.is_spectator
-        ? echo.channel(`games.public.${props.game.id}`)
-        : echo.private(`games.${props.game.id}`);
-    subscribedChannelName = props.game.is_spectator
-        ? `games.public.${props.game.id}`
-        : `games.${props.game.id}`;
-    const connection = echo.connector.pusher.connection;
-    const updateConnectionStatus = ({ current }: { current: string }) => {
-        if (current === 'connected') connectionStatus.value = 'connected';
-        else if (current === 'failed' || current === 'unavailable')
-            connectionStatus.value = 'error';
-        else connectionStatus.value = 'connecting';
-    };
-
-    connection.bind('state_change', updateConnectionStatus);
-    stopConnectionListener = () =>
-        connection.unbind('state_change', updateConnectionStatus);
-
-    channel
-        .listen('.room.realtime.ping', (payload: RoomRealtimePayload) => {
-            if (
-                props.game.is_spectator &&
-                payload.visibility !== 'public_view'
-            ) {
-                router.visit(
-                    `/rooms?room_closed_name=${encodeURIComponent(payload.room_name)}`,
-                );
-                return;
-            }
-
-            router.reload({
-                only: ['game', 'character'],
-            });
-        })
-        .subscribed(() => (connectionStatus.value = 'connected'))
-        .error(() => (connectionStatus.value = 'error'));
-
     void sendRoomViewerHeartbeat(props.game.id);
     viewerHeartbeatInterval = window.setInterval(
         () => void sendRoomViewerHeartbeat(props.game.id),
@@ -226,9 +193,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-    stopConnectionListener?.();
     if (viewerHeartbeatInterval) window.clearInterval(viewerHeartbeatInterval);
-    if (subscribedChannelName) echo?.leave(subscribedChannelName);
 });
 </script>
 
@@ -236,6 +201,10 @@ onUnmounted(() => {
     <Head :title="character.name" />
     <main class="min-h-screen bg-stone-950 text-stone-100">
         <AppHeader :current="game.is_spectator ? 'rooms' : 'dashboard'" />
+        <div v-if="syncError" role="status" class="bg-amber-950 px-6 py-3 text-sm text-amber-200">
+            Updates may be delayed. Reconnecting automatically.
+            <button class="ml-3 underline" @click="resync">Retry now</button>
+        </div>
         <header
             class="sticky top-0 z-10 border-b border-amber-800/40 bg-stone-950/95 px-4 py-4 backdrop-blur"
         >
@@ -250,6 +219,11 @@ onUnmounted(() => {
                     >
                     <h1 class="hq-rule-heading text-2xl font-black">
                         {{ character.name }}
+                        <span
+                            v-if="game.current_character_id === character.id"
+                            class="text-sm text-amber-300"
+                            >Current turn</span
+                        >
                     </h1>
                     <p class="text-sm text-stone-400">
                         {{ character.class_name || 'Unclassed' }}
@@ -421,7 +395,47 @@ onUnmounted(() => {
                 </button>
             </form>
         </div>
-        <div class="mx-auto max-w-3xl space-y-4 px-4 py-6">
+        <div
+            v-if="detailEntry"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/80 p-4"
+            @click.self="detailEntry = null"
+        >
+            <section
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="entry-details-title"
+                class="w-full max-w-md border border-amber-800/50 bg-stone-900 p-6 shadow-2xl"
+            >
+                <div class="flex items-start justify-between gap-4">
+                    <div class="flex items-center gap-3">
+                        <img
+                            v-if="detailEntry.icon"
+                            :src="detailEntry.icon"
+                            alt=""
+                            class="size-12 object-contain"
+                        />
+                        <h2
+                            id="entry-details-title"
+                            class="hq-rule-heading text-xl font-bold"
+                        >
+                            {{ detailEntry.name }}
+                        </h2>
+                    </div>
+                    <button
+                        type="button"
+                        class="text-2xl text-stone-400 hover:text-stone-100"
+                        aria-label="Close details"
+                        @click="detailEntry = null"
+                    >
+                        ×
+                    </button>
+                </div>
+                <p class="mt-4 whitespace-pre-wrap text-stone-300">
+                    {{ detailEntry.description || 'No additional details.' }}
+                </p>
+            </section>
+        </div>
+        <div class="mx-auto max-w-3xl space-y-2 px-4 py-6">
             <section>
                 <h2 class="hq-rule-heading text-lg font-bold text-amber-400">
                     Active Items
@@ -435,7 +449,9 @@ onUnmounted(() => {
                             (entry) => entry.is_active,
                         )"
                         :key="item.id"
-                        class="flex items-start justify-between gap-3 bg-stone-900 p-3"
+                        class="flex cursor-pointer items-start justify-between gap-3 bg-stone-900 p-3"
+                        :title="item.description || item.name"
+                        @click="showDetails(item)"
                     >
                         <div class="flex min-w-0 gap-3">
                             <img
@@ -445,24 +461,14 @@ onUnmounted(() => {
                                 class="size-10 shrink-0 object-contain"
                             />
                             <div>
-                                <strong
-                                    >{{ item.name }} ×{{
-                                        item.quantity
-                                    }}</strong
-                                >
-                                <p
-                                    v-if="item.description"
-                                    class="text-sm text-stone-400"
-                                >
-                                    {{ item.description }}
-                                </p>
+                                <strong>{{ item.name }}</strong>
                             </div>
                         </div>
                         <button
                             v-if="character.can_update"
                             type="button"
                             class="shrink-0 text-sm text-amber-400 hover:text-amber-300"
-                            @click="toggleActiveItem(item)"
+                            @click.stop="toggleActiveItem(item)"
                         >
                             Stop using
                         </button>
@@ -543,12 +549,21 @@ onUnmounted(() => {
                         </form>
                         <div class="space-y-2">
                             <article
-                                v-for="item in character.items"
+                                v-for="item in character.items.filter(
+                                    (entry) =>
+                                        entry.quantity -
+                                            Number(entry.is_active) >
+                                        0,
+                                )"
                                 :key="item.id"
                                 class="rounded-lg bg-stone-950 p-3"
                             >
                                 <div class="flex justify-between gap-3">
-                                    <div class="flex min-w-0 gap-3">
+                                    <div
+                                        class="flex min-w-0 cursor-pointer items-center gap-3"
+                                        :title="item.description || item.name"
+                                        @click="showDetails(item)"
+                                    >
                                         <img
                                             v-if="item.icon"
                                             :src="item.icon"
@@ -557,9 +572,6 @@ onUnmounted(() => {
                                         />
                                         <div>
                                             <strong>{{ item.name }}</strong>
-                                            <p class="text-sm text-stone-400">
-                                                {{ item.description }}
-                                            </p>
                                             <p
                                                 v-if="item.slots.length"
                                                 class="mt-1 text-xs text-amber-500"
@@ -572,7 +584,7 @@ onUnmounted(() => {
                                                         v-for="slot in item.slots"
                                                         :key="slot.id"
                                                         class="mr-2 underline"
-                                                        @click="
+                                                        @click.stop="
                                                             unequip(item, slot)
                                                         "
                                                     >
@@ -593,14 +605,28 @@ onUnmounted(() => {
                                     </div>
                                     <div
                                         v-if="character.can_update"
-                                        class="flex items-start gap-2"
+                                        class="flex shrink-0 items-center gap-2"
                                     >
+                                        <button
+                                            type="button"
+                                            class="border border-stone-700 px-2 py-1 text-xs font-semibold text-amber-400 hover:border-amber-600"
+                                            @click="toggleActiveItem(item)"
+                                        >
+                                            {{
+                                                item.is_active
+                                                    ? 'Stop using'
+                                                    : 'Use item'
+                                            }}
+                                        </button>
                                         <button
                                             :disabled="item.quantity <= 1"
                                             @click="quantity(item, -1)"
                                         >
                                             −</button
-                                        ><span>{{ item.quantity }}</span
+                                        ><span>{{
+                                            item.quantity -
+                                            Number(item.is_active)
+                                        }}</span
                                         ><button @click="quantity(item, 1)">
                                             +</button
                                         ><button
@@ -630,20 +656,20 @@ onUnmounted(() => {
                                         {{ slot.name }}
                                     </option>
                                 </select>
-                                <button
-                                    v-if="character.can_update"
-                                    type="button"
-                                    class="mt-2 border border-stone-700 px-3 py-2 text-sm font-semibold text-amber-400 hover:border-amber-600"
-                                    @click="toggleActiveItem(item)"
-                                >
-                                    {{
-                                        item.is_active
-                                            ? 'Stop using'
-                                            : 'Use item'
-                                    }}
-                                </button>
                             </article>
                         </div>
+                        <p
+                            v-if="
+                                !character.items.some(
+                                    (item) =>
+                                        item.quantity - Number(item.is_active) >
+                                        0,
+                                )
+                            "
+                            class="text-sm text-stone-500"
+                        >
+                            No items in inventory.
+                        </p>
                     </template>
                     <template v-else-if="section.key === 'abilities'"
                         ><form
@@ -683,7 +709,8 @@ onUnmounted(() => {
                             <button
                                 v-if="character.can_update"
                                 class="w-full text-left"
-                                @click="toggleAbility('spells', ability)"
+                                :title="ability.description || ability.name"
+                                @click="showDetails(ability)"
                             >
                                 <span class="flex items-center gap-2">
                                     <img
@@ -694,11 +721,13 @@ onUnmounted(() => {
                                     />
                                     <strong>{{ ability.name }}</strong>
                                 </span>
-                                <p class="text-sm text-stone-400">
-                                    {{ ability.description }}
-                                </p>
                             </button>
-                            <div v-else>
+                            <div
+                                v-else
+                                class="cursor-pointer"
+                                :title="ability.description || ability.name"
+                                @click="showDetails(ability)"
+                            >
                                 <span class="flex items-center gap-2">
                                     <img
                                         v-if="ability.icon"
@@ -708,10 +737,18 @@ onUnmounted(() => {
                                     />
                                     <strong>{{ ability.name }}</strong>
                                 </span>
-                                <p class="text-sm text-stone-400">
-                                    {{ ability.description }}
-                                </p>
                             </div>
+                            <button
+                                v-if="character.can_update"
+                                class="mt-2 mr-3 text-xs text-amber-400"
+                                @click="toggleAbility('spells', ability)"
+                            >
+                                {{
+                                    ability.is_used
+                                        ? 'Make available'
+                                        : 'Mark used'
+                                }}
+                            </button>
                             <button
                                 v-if="character.can_update"
                                 class="mt-2 text-xs text-red-400"
@@ -759,7 +796,8 @@ onUnmounted(() => {
                             <button
                                 v-if="character.can_update"
                                 class="w-full text-left"
-                                @click="toggleAbility('skills', ability)"
+                                :title="ability.description || ability.name"
+                                @click="showDetails(ability)"
                             >
                                 <span class="flex items-center gap-2">
                                     <img
@@ -770,11 +808,13 @@ onUnmounted(() => {
                                     />
                                     <strong>{{ ability.name }}</strong>
                                 </span>
-                                <p class="text-sm text-stone-400">
-                                    {{ ability.description }}
-                                </p>
                             </button>
-                            <div v-else>
+                            <div
+                                v-else
+                                class="cursor-pointer"
+                                :title="ability.description || ability.name"
+                                @click="showDetails(ability)"
+                            >
                                 <span class="flex items-center gap-2">
                                     <img
                                         v-if="ability.icon"
@@ -784,10 +824,18 @@ onUnmounted(() => {
                                     />
                                     <strong>{{ ability.name }}</strong>
                                 </span>
-                                <p class="text-sm text-stone-400">
-                                    {{ ability.description }}
-                                </p>
                             </div>
+                            <button
+                                v-if="character.can_update"
+                                class="mt-2 mr-3 text-xs text-amber-400"
+                                @click="toggleAbility('skills', ability)"
+                            >
+                                {{
+                                    ability.is_used
+                                        ? 'Make available'
+                                        : 'Mark used'
+                                }}
+                            </button>
                             <button
                                 v-if="character.can_update"
                                 class="mt-2 text-xs text-red-400"

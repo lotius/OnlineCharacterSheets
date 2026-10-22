@@ -4,6 +4,7 @@ namespace App\Actions\GameSessions;
 
 use App\Models\GameSession;
 use App\Models\GameSessionMember;
+use App\Services\RoomMutation;
 use Illuminate\Validation\ValidationException;
 
 class RemoveGameSessionMember
@@ -14,7 +15,9 @@ class RemoveGameSessionMember
             throw ValidationException::withMessages(['member' => 'This membership cannot be removed from this room.']);
         }
 
-        $member->update(['status' => 'removed', 'approved_at' => null]);
+        app(RoomMutation::class)->run($session, 'member.removed', fn () => $member->fresh()->only(['id', 'user_id', 'role', 'status']), function () use ($member) {
+            $member->refresh()->update(['status' => 'removed', 'approved_at' => null]);
+        });
 
         return $member->refresh();
     }

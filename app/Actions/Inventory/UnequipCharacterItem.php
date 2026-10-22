@@ -5,6 +5,7 @@ namespace App\Actions\Inventory;
 use App\Models\Character;
 use App\Models\CharacterItem;
 use App\Models\SlotDefinition;
+use App\Services\CharacterMutation;
 use Illuminate\Validation\ValidationException;
 
 class UnequipCharacterItem
@@ -14,6 +15,6 @@ class UnequipCharacterItem
         if ($item->character_id !== $character->id) {
             throw ValidationException::withMessages(['item' => 'That item does not belong to this character.']);
         }
-        $item->slots()->where('slot_definition_id', $slot->id)->delete();
+        app(CharacterMutation::class)->run($character, 'item.unequipped', 'item', $item->id, fn () => $item->slots()->where('slot_definition_id', $slot->id)->delete());
     }
 }

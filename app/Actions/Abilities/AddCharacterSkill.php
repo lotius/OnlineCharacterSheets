@@ -5,6 +5,7 @@ namespace App\Actions\Abilities;
 use App\Models\Character;
 use App\Models\CharacterSkill;
 use App\Models\SkillDefinition;
+use App\Services\CharacterMutation;
 use Illuminate\Validation\ValidationException;
 
 class AddCharacterSkill
@@ -18,6 +19,6 @@ class AddCharacterSkill
             throw ValidationException::withMessages(['skill_definition_id' => 'That skill is not valid for this character.']);
         }
 
-        return CharacterSkill::query()->firstOrCreate(['character_id' => $character->id, 'skill_definition_id' => $definition->id]);
+        return app(CharacterMutation::class)->run($character, 'skill.added', 'skill', null, fn () => CharacterSkill::query()->firstOrCreate(['character_id' => $character->id, 'skill_definition_id' => $definition->id]));
     }
 }
