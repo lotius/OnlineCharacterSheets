@@ -1,6 +1,6 @@
 # Sheet Overhaul — Progress Log
 
-Working branch: `claude/sheet-overhaul` (branched from `main` @ 16ba52b). Nothing committed yet unless noted below.
+Working branch: `claude/sheet-overhaul` (branched from `main` @ 16ba52b). All work through the current-turn card change is committed as c0fdbf5 (not pushed, not merged).
 
 If you are resuming in a new session: read this file top to bottom, then `git status` / `git diff --stat main` to see the uncommitted work, then continue at the first unchecked step.
 
@@ -102,3 +102,8 @@ Not done / next candidates:
 
 - The current-turn card was drawn with an outside ring (`turn-glow`) that the sticky turn bar covered at the top. It now uses `.turn-card`: an inside gold border, inner glow and warm tint, plus a gold "CURRENT TURN" / "YOUR TURN" banner across the top (`.turn-banner`). The small "TURN" pill was removed. All cards use `border-2`, so nothing shifts when the turn changes.
 - Gotcha: the global `app.css` forces `.tracking-widest` text to gold with `!important`, so use `tracking-wider` on gold backgrounds. That override is part of the planned theme-system cleanup.
+
+### 2026-10-21 — Committed
+
+- Commit `c0fdbf5` on `claude/sheet-overhaul` (not pushed, not merged into `main`).
+- Agreed next steps: (2) realtime test with Reverb running across two browsers, (5) quick compaction fixes (wrapping item names, hiding empty slots on cards, hiding inapplicable sections, readable labels), then the theme-system visual overhaul.
