@@ -70,7 +70,7 @@ const memberUrl = (member: Member, action = '') =>
 </script>
 
 <template>
-    <div class="grid gap-4 lg:grid-cols-2">
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <section class="setup-card">
             <h2 class="hq-rule-heading text-lg font-bold">Invite players</h2>
             <div

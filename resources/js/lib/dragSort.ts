@@ -44,12 +44,34 @@ export function useDragSort(options: {
             .elementFromPoint(pointerX, pointerY)
             ?.closest<HTMLElement>('[data-sort-id]');
         const targetId = Number(target?.dataset.sortId);
-        if (!target || targetId === draggingId.value) {
+        if (!target) {
+            lastSwap = null;
+            moveToEdge();
+            return;
+        }
+        if (targetId === draggingId.value) {
             lastSwap = null;
             return;
         }
         // Cards animate into their new places; don't swap back with the card we just passed.
         if (targetId === lastSwap || !order.value.includes(targetId)) return;
+        // Only swap once the pointer passes the middle of the target in the direction of travel, so cards of
+        // different heights don't flip back and forth under a still finger. Same row: compare x, else y.
+        const dragged = document
+            .querySelector<HTMLElement>(`[data-sort-id="${draggingId.value}"]`)
+            ?.getBoundingClientRect();
+        const box = target.getBoundingClientRect();
+        const forward =
+            order.value.indexOf(targetId) >
+            order.value.indexOf(draggingId.value);
+        if (dragged) {
+            const sameRow = Math.abs(dragged.top - box.top) < box.height / 2;
+            const pointer = sameRow ? pointerX : pointerY;
+            const middle = sameRow
+                ? box.left + box.width / 2
+                : box.top + box.height / 2;
+            if (forward ? pointer < middle : pointer > middle) return;
+        }
         lastSwap = targetId;
         const next = order.value.filter((id) => id !== draggingId.value);
         next.splice(
@@ -62,6 +84,30 @@ export function useDragSort(options: {
             draggingId.value,
         );
         order.value = next;
+    };
+
+    // Past the last card (or above the first) means "move to the end" (or start).
+    const moveToEdge = () => {
+        if (draggingId.value === null || !order.value) return;
+        const rects = order.value
+            .map((id) =>
+                document
+                    .querySelector<HTMLElement>(`[data-sort-id="${id}"]`)
+                    ?.getBoundingClientRect(),
+            )
+            .filter((rect): rect is DOMRect => !!rect);
+        if (!rects.length) return;
+        const bottom = Math.max(...rects.map((rect) => rect.bottom));
+        const top = Math.min(...rects.map((rect) => rect.top));
+        const rest = order.value.filter((id) => id !== draggingId.value);
+        if (
+            pointerY > bottom &&
+            order.value[order.value.length - 1] !== draggingId.value
+        ) {
+            order.value = [...rest, draggingId.value];
+        } else if (pointerY < top && order.value[0] !== draggingId.value) {
+            order.value = [draggingId.value, ...rest];
+        }
     };
 
     const finish = (commit: boolean) => {

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Realtime;
 
+use App\Actions\Characters\CreateCharacter;
 use App\Actions\GameSessions\CreateGameSession;
 use App\Events\RoomRealtimePinged;
 use App\Models\GameSession;
@@ -63,6 +64,25 @@ class RealtimeConnectivityTest extends TestCase
         $this->actingAs($outsider)->post("/games/{$game->id}/realtime/ping")->assertForbidden();
         $this->actingAs($owner)->post("/games/{$game->id}/realtime/ping")->assertRedirect();
         Event::assertDispatched(RoomRealtimePinged::class, fn ($event) => $event->gameSession->is($game));
+    }
+
+    public function test_a_websocket_outage_never_fails_an_already_saved_change(): void
+    {
+        [$owner, $game] = $this->room();
+        $character = app(CreateCharacter::class)->handle($owner, $game, ['name' => 'Hero']);
+        $body = $character->stats()->whereHas('definition', fn ($query) => $query->where('key', 'body'))->sole();
+        config([
+            'broadcasting.default' => 'reverb',
+            'broadcasting.connections.reverb.options.host' => '127.0.0.1',
+            'broadcasting.connections.reverb.options.port' => 9, // nothing listens here
+            'broadcasting.connections.reverb.options.scheme' => 'http',
+        ]);
+        app('Illuminate\Broadcasting\BroadcastManager')->purge('reverb');
+
+        $this->actingAs($owner)->patchJson("/characters/{$character->id}/stats/{$body->id}", ['delta' => -1])->assertOk();
+        $this->assertSame(5, $body->refresh()->value);
+        $this->patch("/games/{$game->id}/turn", ['direction' => 'next'])->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertSame($character->id, $game->refresh()->current_character_id);
     }
 
     public function test_public_rooms_also_emit_safe_invalidation_on_public_channel(): void

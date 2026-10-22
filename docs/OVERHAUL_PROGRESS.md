@@ -107,3 +107,31 @@ Not done / next candidates:
 
 - Commit `c0fdbf5` on `claude/sheet-overhaul` (not pushed, not merged into `main`).
 - Agreed next steps: (2) realtime test with Reverb running across two browsers, (5) quick compaction fixes (wrapping item names, hiding empty slots on cards, hiding inapplicable sections, readable labels), then the theme-system visual overhaul.
+
+### 2026-10-21 — Live Reverb test, compaction fixes, app name
+
+Live multi-device test (DM desktop + player phone + OBS overlay in separate browser contexts, with a separate test Reverb on port 8089 so the owner's running Reverb on 8080 was untouched). All checks pass. Cross-device latency is 135–370 ms on a fast local server.
+
+- Findings and fixes:
+    - **A Reverb outage made saved changes return HTTP 500.** Added `App\Events\Concerns\BroadcastsBestEffort::notify()`, used everywhere `RoomRealtimePinged` and `PublicRoomDirectoryChanged` are dispatched; the viewer-count broadcast is wrapped too. Regression test: `test_a_websocket_outage_never_fails_an_already_saved_change`.
+    - **Redundant self-refetch:** the notice for your own change arrives before your response. `store.refresh()` now skips while a request for that character is pending.
+    - **Slow on Windows dev:** `REVERB_HOST=localhost` costs about 220 ms per broadcast (IPv6 fallback), and `php artisan serve` without CLI OPcache costs about 200–300 ms per request. The SQLite-in-temp sessions in my test env were slow as well. Documented in the README ("Fast, multi-device local play"). The owner's `.env` still has `REVERB_HOST="localhost"`; that is their call to change.
+
+Compaction:
+
+- `EquipmentBlock`: compact/overlay modes show only filled slots (a two-handed item once, labelled "Main Hand + Off Hand") plus a "+N empty" tile that expands. Tiles are at least 9.5rem wide so names fit whole. Names wrap to 2 lines (`line-clamp-2`) instead of truncating in slots, item rows, abilities and card titles.
+- Labels: 10–11px stone-400 bumped to 11–12px stone-300.
+- Classes can hide sections they never use: class `configuration.hide_sections` (block id, ability kind or item category), exposed as `hidden_sections` on the character and applied only while the section is empty. The HeroQuest seed hides spells for everyone except wizard, elf, druid and warlock (verify the expansion heroes). Test: `test_classes_declare_sections_they_never_use`.
+
+App name: `APP_NAME="Online Character Sheets"` in `.env` (local) and `.env.example`; fallbacks in `app.ts`, `app.blade.php` and `config/app.php` updated.
+
+Status: 86 PHP tests pass; lint, format and types pass; browser smoke test 25/25. Not committed yet.
+
+### 2026-10-21 — One-line names, room cards per row, drag fixes
+
+- Names never wrap. `resources/js/lib/fitText.ts` (`v-fit`) shrinks text to as little as 50% of its size, then truncates with "…". Used on card titles and subtitles, slot labels and names, item names and ability names. It refits on resize, text change and web-font load.
+- Room card grid: `grid-cols-1` + `min-w-0` stop long names from widening cards past the phone screen (they were causing horizontal overflow and zoom-out on phones).
+- Cards per row: room setting `settings.card_columns` (Auto/1–4) via `PATCH /games/{g}/display` (DM/co-DM), exposed as `game.card_columns`, with a DM-only control above the cards on the Play tab (md+ screens). Phones always show 1. Test: `test_room_cards_per_row_is_a_shared_room_setting`.
+- Drag-to-reorder: dropping past the last card (or above the first) moves to the end (or start). Swaps only after passing the target's midpoint, which avoids flip-flopping between cards of different heights.
+- Smoke-test lesson: headless Edge can report `visibilityState: hidden`, which pauses requestAnimationFrame and so freezes Vue transitions. The driver now calls `Page.bringToFront` + `Emulation.setFocusEmulationEnabled`. The simulated touch drag that holds still at the screen edge is still flaky in the harness. Normal touch and mouse drags pass.
+- Status: 87/87 PHP tests; lint, format and types pass. Not committed yet.

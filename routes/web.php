@@ -66,6 +66,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/games/{game}/events/{event}/undo', [GameTurnController::class, 'undo'])->name('games.events.undo');
     Route::patch('/games/{game}', [GameSessionController::class, 'update'])->name('games.update');
     Route::put('/games/{game}/layouts', [GameLayoutController::class, 'update'])->name('games.layouts.update');
+    Route::patch('/games/{game}/display', [GameLayoutController::class, 'display'])->name('games.display.update');
     Route::post('/games/{game}/overlays', [StreamOverlayController::class, 'store'])->name('games.overlays.store');
     Route::get('/games/{game}/overlays/{overlay}/edit', [StreamOverlayController::class, 'edit'])->name('games.overlays.edit');
     Route::put('/games/{game}/overlays/{overlay}', [StreamOverlayController::class, 'update'])->name('games.overlays.update');

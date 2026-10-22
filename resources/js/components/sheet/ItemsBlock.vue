@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { vFit } from '@/lib/fitText';
 import { isEquippable, itemsInCategory } from '@/sheet/derive';
 import type { SheetActions } from '@/sheet/store';
 import type { Block, Character, Item, SheetMode } from '@/sheet/types';
@@ -45,7 +46,7 @@ const items = computed(() =>
                 />
                 <span class="min-w-0">
                     <span class="flex items-center gap-1.5">
-                        <span class="truncate font-semibold">{{
+                        <span v-fit class="min-w-0 truncate font-semibold">{{
                             item.name
                         }}</span>
                         <span
@@ -65,7 +66,7 @@ const items = computed(() =>
                         v-if="
                             item.slots.length || (!compact && item.tags.length)
                         "
-                        class="block truncate text-xs text-stone-400"
+                        class="block truncate text-xs text-stone-300"
                     >
                         <span v-if="item.slots.length" class="text-amber-500">{{
                             item.slots.map((slot) => slot.name).join(' + ')

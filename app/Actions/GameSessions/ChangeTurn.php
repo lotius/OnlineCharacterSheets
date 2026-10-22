@@ -57,7 +57,7 @@ class ChangeTurn
                 'before_state' => $before, 'after_state' => ['current_character_id' => $characterId],
                 'undoes_event_id' => $target?->id,
             ]);
-            DB::afterCommit(fn () => RoomRealtimePinged::dispatch($game));
+            DB::afterCommit(fn () => RoomRealtimePinged::notify($game));
         });
     }
 }

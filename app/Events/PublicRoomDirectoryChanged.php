@@ -2,6 +2,7 @@
 
 namespace App\Events;
 
+use App\Events\Concerns\BroadcastsBestEffort;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
@@ -9,7 +10,7 @@ use Illuminate\Queue\SerializesModels;
 
 class PublicRoomDirectoryChanged implements ShouldBroadcastNow
 {
-    use Dispatchable, SerializesModels;
+    use BroadcastsBestEffort, Dispatchable, SerializesModels;
 
     public function broadcastOn(): Channel
     {

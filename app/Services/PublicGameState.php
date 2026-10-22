@@ -6,7 +6,7 @@ use Illuminate\Support\Arr;
 
 class PublicGameState
 {
-    private const CHARACTER = ['id', 'revision', 'session_character_id', 'name', 'class_key', 'class_name', 'portrait', 'assigned_user_name', 'note'];
+    private const CHARACTER = ['id', 'revision', 'session_character_id', 'name', 'class_key', 'class_name', 'portrait', 'hidden_sections', 'assigned_user_name', 'note'];
 
     private const COLLECTIONS = [
         'stats' => ['id', 'key', 'name', 'kind', 'icon', 'value', 'max_value', 'minimum', 'maximum'],
@@ -21,7 +21,7 @@ class PublicGameState
      */
     public function room(array $payload): array
     {
-        $game = Arr::only($payload['game'], ['id', 'name', 'status', 'visibility', 'system', 'viewer_count', 'current_revision', 'current_character_id']);
+        $game = Arr::only($payload['game'], ['id', 'name', 'status', 'visibility', 'system', 'viewer_count', 'current_revision', 'current_character_id', 'card_columns']);
         $game += ['join_code' => null, 'is_spectator' => true, 'can_manage_members' => false, 'can_manage_settings' => false, 'my_user_id' => null, 'members' => [], 'players' => [], 'classes' => [], 'overlays' => [], 'game_events' => [], 'turn_events' => [], 'sheet_layouts' => ['room' => null, 'system' => null]];
         $game['characters'] = collect($payload['game']['characters'])->map(fn (array $character) => $this->character($character))->values();
 

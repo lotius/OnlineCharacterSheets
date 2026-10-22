@@ -99,7 +99,12 @@ class HeroQuestGameSystemSeeder extends Seeder
         ] as $key => [$name, $description, $body, $mind, $equipment]) {
             $this->upsert(CharacterClassDefinition::class, $version, $key, [
                 'name' => $name, 'description' => $description, 'display_order' => $classOrder,
-                'configuration' => ['default_stats' => ['body' => $body, 'mind' => $mind], 'starting_equipment' => $equipment],
+                'configuration' => [
+                    'default_stats' => ['body' => $body, 'mind' => $mind],
+                    'starting_equipment' => $equipment,
+                    // Spellcasting classes per the earlier seed's descriptions; verify for the expansion heroes.
+                    'hide_sections' => in_array($key, ['wizard', 'elf', 'druid', 'warlock'], true) ? [] : ['spells'],
+                ],
             ]);
             $classOrder += 10;
         }

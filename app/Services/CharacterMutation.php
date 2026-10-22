@@ -102,7 +102,7 @@ class CharacterMutation
                 'mutation_id' => $mutationId, 'is_undoable' => $undoMutation === null,
                 'before_state' => $before, 'after_state' => $after, 'undoes_event_id' => $original?->id,
             ]);
-            DB::afterCommit(fn () => RoomRealtimePinged::dispatch($room, false, $character->id, $character->revision));
+            DB::afterCommit(fn () => RoomRealtimePinged::notify($room, false, $character->id, $character->revision));
         }
     }
 }

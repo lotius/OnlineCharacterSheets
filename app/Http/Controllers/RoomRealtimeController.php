@@ -11,7 +11,7 @@ class RoomRealtimeController extends Controller
     public function store(GameSession $game): RedirectResponse
     {
         $this->authorize('view', $game);
-        RoomRealtimePinged::dispatch($game);
+        RoomRealtimePinged::notify($game);
 
         return back()->with('success', 'Realtime ping sent.');
     }

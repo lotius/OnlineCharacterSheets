@@ -57,7 +57,7 @@ watch(
         :class="compact ? 'p-1.5' : 'p-2'"
     >
         <p
-            class="truncate text-center text-[11px] font-semibold tracking-wider text-stone-400 uppercase"
+            class="truncate text-center text-xs font-semibold tracking-wide text-stone-300 uppercase"
         >
             {{ stat.name }}
         </p>
@@ -134,7 +134,7 @@ watch(
         @click="padOpen = true"
     >
         <span
-            class="text-[11px] font-semibold tracking-wider text-stone-400 uppercase"
+            class="text-xs font-semibold tracking-wide text-stone-300 uppercase"
             >{{ stat.name }}</span
         >
         <strong
@@ -167,7 +167,7 @@ watch(
         @click="mode !== 'overlay' && (detailOpen = true)"
     >
         <span
-            class="max-w-full truncate text-[10px] font-semibold tracking-wider text-stone-400 uppercase"
+            class="max-w-full truncate text-[11px] font-semibold tracking-wide text-stone-300 uppercase"
             >{{ stat.name }}</span
         >
         <strong

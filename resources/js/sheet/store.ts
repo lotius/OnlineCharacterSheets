@@ -91,10 +91,9 @@ export function createSheetStore(gameId: () => number) {
     }
 
     async function refresh(characterId: number) {
-        if (hasPending(characterId)) {
-            dirty.add(characterId); // The mutation response will be fresher; re-check afterwards.
-            return;
-        }
+        // A request for this character is in flight: its response is read after the notified change was
+        // committed, so it already contains it (usually the notice is our own change echoing back).
+        if (hasPending(characterId)) return;
         try {
             const state = await sendJson<{ character: Character }>(
                 'GET',

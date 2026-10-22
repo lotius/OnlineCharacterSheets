@@ -41,6 +41,8 @@ class CharacterPresenter
             'class_key' => $character->characterClass?->key,
             'class_name' => $character->characterClass?->name,
             'portrait' => $this->icons->url($character->portrait),
+            // Class configuration may hide sheet sections that never apply (e.g. spells for a Barbarian).
+            'hidden_sections' => array_values(array_filter($character->characterClass?->configuration['hide_sections'] ?? [], 'is_string')),
             'can_update' => $canUpdate,
             'stats' => $character->stats
                 ->filter(fn ($stat) => $isMember || $stat->definition->is_public)

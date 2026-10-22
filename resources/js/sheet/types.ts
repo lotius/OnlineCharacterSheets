@@ -67,6 +67,8 @@ export type Character = {
     class_key: string | null;
     class_name: string | null;
     portrait: string | null;
+    /** Section keys (block id, ability kind or item category) this class never uses; hidden while empty. */
+    hidden_sections?: string[];
     can_update: boolean;
     stats: Stat[];
     items: Item[];

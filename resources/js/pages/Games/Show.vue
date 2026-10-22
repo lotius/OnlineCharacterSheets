@@ -28,6 +28,7 @@ type Game = {
     can_manage_settings: boolean;
     is_spectator: boolean;
     my_user_id: number | null;
+    card_columns: number | null;
     members: Array<{ id: number; name: string; role: string; status: string }>;
     classes: Array<{ id: number; name: string }>;
     players: Array<{ id: number; name: string }>;
@@ -91,6 +92,41 @@ const actionsFor = (id: number) => {
     return actionCache.get(id)!;
 };
 const tab = ref<'play' | 'setup' | 'history'>('play');
+
+// Cards per row (room setting; phones always show one). Applied instantly, then saved for everyone.
+const columnClasses: Record<string, string> = {
+    auto: 'md:grid-cols-2 xl:grid-cols-3',
+    1: 'md:grid-cols-1 md:max-w-3xl md:mx-auto',
+    2: 'md:grid-cols-2',
+    3: 'md:grid-cols-2 lg:grid-cols-3',
+    4: 'md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
+};
+const columnsOverride = ref<number | null | undefined>(undefined);
+watch(
+    () => props.game.card_columns,
+    () => (columnsOverride.value = undefined),
+);
+const columns = computed(() =>
+    columnsOverride.value === undefined
+        ? props.game.card_columns
+        : columnsOverride.value,
+);
+const setColumns = (value: number | null) => {
+    columnsOverride.value = value;
+    router.patch(
+        `/games/${props.game.id}/display`,
+        { card_columns: value },
+        {
+            preserveScroll: true,
+            preserveState: true,
+            only: ['game'],
+            onError: () => {
+                columnsOverride.value = undefined;
+                toast('The layout could not be saved.', 'error');
+            },
+        },
+    );
+};
 const viewerCount = ref(props.game.viewer_count);
 const pendingRequests = computed(
     () =>
@@ -211,11 +247,41 @@ onUnmounted(() => window.clearInterval(heartbeat));
                         :my-user-id="game.my_user_id"
                     />
                 </div>
+                <div
+                    v-if="game.can_manage_members && characters.length > 1"
+                    class="mb-2 hidden items-center justify-end gap-2 text-xs text-stone-300 md:flex"
+                >
+                    Cards per row
+                    <div
+                        class="flex overflow-hidden rounded-md border border-stone-700"
+                        role="group"
+                        aria-label="Cards per row"
+                    >
+                        <button
+                            v-for="option in [null, 1, 2, 3, 4]"
+                            :key="String(option)"
+                            type="button"
+                            class="min-h-8 min-w-9 px-2 font-semibold"
+                            :class="
+                                columns === option
+                                    ? 'bg-amber-600 text-stone-950'
+                                    : 'bg-stone-900 hover:text-amber-400'
+                            "
+                            :aria-pressed="columns === option"
+                            @click="setColumns(option)"
+                        >
+                            {{ option ?? 'Auto' }}
+                        </button>
+                    </div>
+                </div>
                 <TransitionGroup
                     tag="div"
                     move-class="transition-transform duration-200"
-                    class="grid gap-3 md:grid-cols-2 xl:grid-cols-3"
-                    :class="{ 'select-none': sort.draggingId.value !== null }"
+                    class="grid grid-cols-1 gap-3"
+                    :class="[
+                        columnClasses[columns ?? 'auto'],
+                        { 'select-none': sort.draggingId.value !== null },
+                    ]"
                 >
                     <CharacterCard
                         v-for="(character, index) in characters"

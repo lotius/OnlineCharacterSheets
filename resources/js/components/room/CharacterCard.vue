@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { vFit } from '@/lib/fitText';
 import SheetRenderer from '@/components/sheet/SheetRenderer.vue';
 import type { SheetActions } from '@/sheet/store';
 import type { Character, SystemContext } from '@/sheet/types';
@@ -22,7 +23,7 @@ const emit = defineEmits<{ grab: [PointerEvent]; nudge: [-1 | 1] }>();
 <template>
     <article
         :data-sort-id="character.id"
-        class="rounded-lg border-2 p-2.5 transition"
+        class="min-w-0 rounded-lg border-2 p-2.5 transition"
         :class="[
             isCurrent ? 'turn-card' : 'border-stone-800 bg-stone-900',
             {
@@ -85,12 +86,10 @@ const emit = defineEmits<{ grab: [PointerEvent]; nudge: [-1 | 1] }>();
                 class="size-10 shrink-0 rounded-full border border-amber-800 object-cover"
             />
             <div class="min-w-0 flex-1">
-                <h3
-                    class="flex items-center gap-2 truncate text-lg leading-tight font-black"
-                >
+                <h3 v-fit class="truncate text-lg leading-tight font-black">
                     {{ character.name }}
                 </h3>
-                <p class="truncate text-xs text-stone-400">
+                <p v-fit class="truncate text-xs text-stone-300">
                     {{ character.class_name || 'Unclassed' }} ·
                     {{ character.assigned_user_name || 'Unassigned' }}
                 </p>

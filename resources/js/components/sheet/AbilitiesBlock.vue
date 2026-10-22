@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { vFit } from '@/lib/fitText';
 import type { SheetActions } from '@/sheet/store';
 import type { Ability, Block, Character, SheetMode } from '@/sheet/types';
 import { computed } from 'vue';
@@ -28,7 +29,7 @@ const groups = computed(() => {
         <div v-for="[group, abilities] in groups" :key="group">
             <p
                 v-if="group"
-                class="mb-1 text-[11px] tracking-wider text-stone-400 uppercase"
+                class="mb-1 text-xs tracking-wider text-stone-300 uppercase"
             >
                 {{ group }}
             </p>
@@ -61,6 +62,7 @@ const groups = computed(() => {
                             :class="{ 'opacity-40 grayscale': ability.is_used }"
                         />
                         <span
+                            v-fit
                             class="truncate text-sm font-semibold"
                             :class="{ 'line-through': ability.is_used }"
                             >{{ ability.name }}</span

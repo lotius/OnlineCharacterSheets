@@ -34,4 +34,19 @@ class GameLayoutController extends Controller
 
         return back()->with('success', 'Sheet layout saved.');
     }
+
+    /** Room display options shared by everyone in the room (e.g. cards per row on wide screens). */
+    public function display(Request $request, GameSession $game, RoomMutation $mutation): RedirectResponse
+    {
+        $this->authorize('update', $game);
+        $data = $request->validate(['card_columns' => ['nullable', 'integer', 'between:1,4']]);
+
+        $mutation->run($game, 'session.display_changed', fn () => ['card_columns' => $game->fresh()->settings['card_columns'] ?? null], function (GameSession $locked) use ($data) {
+            $settings = $locked->settings ?? [];
+            $settings['card_columns'] = $data['card_columns'] ?? null;
+            $locked->update(['settings' => $settings]);
+        });
+
+        return back();
+    }
 }

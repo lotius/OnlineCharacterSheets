@@ -47,6 +47,16 @@ npm.cmd run dev
 
 Reverb listens on `127.0.0.1:8080` by default. The room and sheet headers show the realtime connection state as a dot (green connected, amber connecting, red offline).
 
+### Fast, multi-device local play (Windows)
+
+Measured on this project, a change on one device appears on the others in about 0.1–0.4 s once these are set:
+
+- **Use an IP address, not `localhost`, for `REVERB_HOST`.** On Windows, sending to `localhost` tries IPv6 first and adds about 220 ms to every change. Phones also cannot reach your PC by `localhost`. Set `REVERB_HOST` to the PC's LAN IP (e.g. `192.168.1.20`), set `APP_URL` to `http://192.168.1.20:8000`, add that IP to `REVERB_ALLOWED_ORIGINS`, then rebuild (`npm run build`) or restart `npm run dev`, because the browser bundle bakes in `VITE_REVERB_HOST`. Start the servers with `php artisan serve --host=0.0.0.0` and `php artisan reverb:start --host=0.0.0.0`.
+- **Enable OPcache for the PHP CLI** (`opcache.enable_cli=1` in `php.ini`). `php artisan serve` runs as CLI and otherwise spends about 200–300 ms booting Laravel on every request.
+- `php artisan serve` handles one request at a time. For a full table, a real web server (Laravel Herd, or nginx + PHP-FPM) keeps taps snappy under load.
+
+If Reverb is down, changes still save; screens catch up within 15 seconds through the periodic revision check.
+
 ## Upgrading an existing database
 
 After pulling the October 2026 overhaul, run both commands:

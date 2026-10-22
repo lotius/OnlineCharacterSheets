@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { vFit } from '@/lib/fitText';
 import { itemFitsSlot } from '@/sheet/derive';
 import type { SheetActions } from '@/sheet/store';
 import type { Character, Item, SheetMode, SystemContext } from '@/sheet/types';
@@ -41,6 +42,44 @@ const others = computed(() =>
           )
         : [],
 );
+// Compact cards show only filled slots (a two-handed item once), plus a "+N empty" tile that expands.
+const expanded = ref(false);
+type Tile = {
+    key: string;
+    label: string;
+    slot: SystemContext['slots'][number];
+    items: Item[];
+};
+const tiles = computed<Tile[]>(() => {
+    const all = props.system.slots.map((slot) => ({
+        key: `slot-${slot.id}`,
+        label: slot.name,
+        slot,
+        items: occupant(slot.id),
+    }));
+    if (!props.compact && props.mode !== 'overlay') return all;
+    if (expanded.value) return all;
+    const filled: Tile[] = [];
+    for (const tile of all.filter((entry) => entry.items.length)) {
+        const item = tile.items[0];
+        const existing = filled.find(
+            (entry) =>
+                entry.items.length === 1 &&
+                entry.items[0].id === item.id &&
+                tile.items.length === 1,
+        );
+        if (existing) existing.label = `${existing.label} + ${tile.label}`;
+        else
+            filled.push({
+                ...tile,
+                key: `item-${tile.items.map((entry) => entry.id).join('-')}`,
+            });
+    }
+    return filled;
+});
+const emptyCount = computed(
+    () => props.system.slots.filter((slot) => !occupant(slot.id).length).length,
+);
 const tap = (slot: SystemContext['slots'][number]) => {
     if (props.mode === 'overlay') return;
     const [item] = occupant(slot.id);
@@ -58,52 +97,69 @@ const choose = (item: Item) => {
         class="grid gap-1.5"
         :class="
             compact || mode === 'overlay'
-                ? 'grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))]'
+                ? 'grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))]'
                 : 'grid-cols-2 sm:grid-cols-3'
         "
     >
         <button
-            v-for="slot in system.slots"
-            :key="slot.id"
+            v-for="tile in tiles"
+            :key="tile.key"
             type="button"
             class="flex min-h-12 items-center gap-2 rounded-md border px-2 py-1.5 text-left"
             :class="
-                occupant(slot.id).length
+                tile.items.length
                     ? 'border-amber-900/80 bg-stone-950'
                     : 'border-dashed border-stone-700 bg-transparent'
             "
-            :disabled="
-                mode === 'overlay' || (!occupant(slot.id).length && !actions)
-            "
-            @click="tap(slot)"
+            :disabled="mode === 'overlay' || (!tile.items.length && !actions)"
+            @click="tap(tile.slot)"
         >
             <img
-                v-if="occupant(slot.id)[0]?.icon"
-                :src="occupant(slot.id)[0].icon!"
+                v-if="tile.items[0]?.icon"
+                :src="tile.items[0].icon!"
                 alt=""
                 class="size-8 shrink-0 object-contain"
             />
             <span class="min-w-0">
                 <span
-                    class="block text-[10px] tracking-wider text-stone-400 uppercase"
-                    >{{ slot.name }}</span
+                    v-fit
+                    class="block truncate text-[11px] leading-tight tracking-wide text-stone-300 uppercase"
+                    >{{ tile.label }}</span
                 >
                 <span
-                    class="block truncate text-sm font-semibold"
+                    v-fit
+                    class="block truncate text-sm leading-tight font-semibold"
                     :class="
-                        occupant(slot.id).length
-                            ? 'text-stone-100'
-                            : 'text-stone-500'
+                        tile.items.length ? 'text-stone-100' : 'text-stone-500'
                     "
                 >
                     {{
-                        occupant(slot.id)
-                            .map((item) => item.name)
-                            .join(', ') || 'Empty'
+                        tile.items.map((item) => item.name).join(', ') ||
+                        'Empty'
                     }}
                 </span>
             </span>
         </button>
+        <button
+            v-if="
+                (compact || mode === 'overlay') &&
+                mode !== 'overlay' &&
+                emptyCount &&
+                (actions || expanded)
+            "
+            type="button"
+            class="flex min-h-12 items-center justify-center rounded-md border border-dashed border-stone-700 px-2 text-sm text-stone-400"
+            :aria-expanded="expanded"
+            @click="expanded = !expanded"
+        >
+            {{ expanded ? 'Hide empty' : `+${emptyCount} empty` }}
+        </button>
+        <p
+            v-if="!tiles.length && !(compact && actions && emptyCount)"
+            class="col-span-full px-1 py-1 text-sm text-stone-500"
+        >
+            Nothing equipped.
+        </p>
     </div>
     <BottomSheet
         v-if="actions"

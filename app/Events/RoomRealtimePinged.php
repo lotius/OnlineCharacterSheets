@@ -2,6 +2,7 @@
 
 namespace App\Events;
 
+use App\Events\Concerns\BroadcastsBestEffort;
 use App\Models\GameSession;
 use App\Models\StreamOverlay;
 use Illuminate\Broadcasting\Channel;
@@ -17,7 +18,7 @@ use Illuminate\Queue\SerializesModels;
  */
 class RoomRealtimePinged implements ShouldBroadcastNow
 {
-    use Dispatchable, InteractsWithSockets, SerializesModels;
+    use BroadcastsBestEffort, Dispatchable, InteractsWithSockets, SerializesModels;
 
     public function __construct(
         public readonly GameSession $gameSession,

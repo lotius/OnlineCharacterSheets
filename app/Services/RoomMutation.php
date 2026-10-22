@@ -52,9 +52,9 @@ class RoomMutation
         ]);
         $wasPublic = ($before['visibility'] ?? null) === 'public_view';
         DB::afterCommit(function () use ($game, $type, $wasPublic) {
-            RoomRealtimePinged::dispatch($game, $wasPublic || $game->visibility === 'public_view');
+            RoomRealtimePinged::notify($game, $wasPublic || $game->visibility === 'public_view');
             if (in_array($type, ['session.created', 'session.updated'], true) && ($wasPublic || $game->visibility === 'public_view')) {
-                PublicRoomDirectoryChanged::dispatch();
+                PublicRoomDirectoryChanged::notify();
             }
         });
     }

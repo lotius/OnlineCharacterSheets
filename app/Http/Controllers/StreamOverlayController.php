@@ -55,7 +55,7 @@ class StreamOverlayController extends Controller
             'name' => $data['name'],
             'configuration' => isset($data['preset']) ? $config->preset($data['preset']) : $config->validate($data['configuration']),
         ]);
-        RoomRealtimePinged::dispatch($game->fresh());
+        RoomRealtimePinged::notify($game->fresh());
 
         return back()->with('success', 'Overlay saved.');
     }

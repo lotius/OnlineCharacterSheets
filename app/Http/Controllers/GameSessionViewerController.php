@@ -39,7 +39,11 @@ class GameSessionViewerController extends Controller
                 ->count();
         });
 
-        broadcast(new RoomViewerCountChanged($game, $viewerCount))->toOthers();
+        try {
+            broadcast(new RoomViewerCountChanged($game, $viewerCount))->toOthers();
+        } catch (BroadcastException $exception) {
+            report($exception); // The viewer count is cosmetic; never fail the heartbeat over it.
+        }
 
         return response()->json(['viewer_count' => $viewerCount]);
     }

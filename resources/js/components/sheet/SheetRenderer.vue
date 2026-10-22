@@ -46,11 +46,30 @@ const editable = computed(
 const actions = computed(() => (editable.value ? props.actions : null));
 const busy = computed(() => props.busy ?? new Set<string>());
 const stats = computed(() => deriveStats(props.character));
+const isEmpty = (block: Block) =>
+    (block.type === 'abilities' &&
+        !props.character[block.kind ?? 'spells'].length) ||
+    (block.type === 'items' &&
+        !itemsInCategory(
+            props.character.items,
+            block.category,
+            block.exclude_categories ?? [],
+        ).length);
+const classHides = (block: Block) => {
+    const hidden = props.character.hidden_sections ?? [];
+    const keys = [
+        block.id,
+        block.type === 'abilities' ? (block.kind ?? 'spells') : null,
+        block.type === 'items' ? block.category : null,
+    ];
+    return keys.some((key) => key && hidden.includes(key)) && isEmpty(block);
+};
 const visible = computed(() =>
     props.blocks.filter(
         (block) =>
-            props.mode === 'overlay' ||
-            !prefs.hidden[`${props.layoutName}:${block.id}`],
+            !classHides(block) &&
+            (props.mode === 'overlay' ||
+                !prefs.hidden[`${props.layoutName}:${block.id}`]),
     ),
 );
 

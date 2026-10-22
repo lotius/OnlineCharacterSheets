@@ -40,6 +40,7 @@ class RoomState
                     'status' => $game->status, 'visibility' => $game->visibility,
                     'current_character_id' => $game->current_character_id,
                     'current_revision' => $game->current_revision,
+                    'card_columns' => $game->settings['card_columns'] ?? null,
                     'game_events' => $canManage ? GameEvent::query()->where('game_session_id', $game->id)->latest('revision')->limit(20)->get()->map(fn ($event) => $history->entry($event)) : [],
                     'turn_events' => $canManage ? GameEvent::query()->where('game_session_id', $game->id)->whereNull('character_id')->withExists('compensation')->latest('revision')->limit(20)->get()->map(fn ($event) => [
                         'id' => $event->id, 'revision' => $event->revision, 'event_type' => $event->event_type,
